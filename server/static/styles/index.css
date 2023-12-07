@@ -1,0 +1,63 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+    max-width: 60%;
+    margin-inline: auto;
+}
+
+.container .title {
+    text-align: center;
+}
+
+
+.container form {
+    border: 2px solid black;
+    border-radius: 5px;
+    padding: 1.5rem;
+    font-size: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.container form div {
+    display: flex;
+    gap: 3rem;
+}
+
+.container form div label {
+    border: 2px solid black;
+    border-radius: 8px;
+    padding: 5px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+}
+
+.container form button {
+    cursor: pointer;
+    padding-block: 10px;
+    font-size: 1rem;
+    letter-spacing: 3px;
+}
+
+.container form input[value="Submit"] {
+    cursor: pointer;
+    padding-block: 10px;
+    font-size: 1rem;
+    letter-spacing: 3px;
+    background-color: #113e21;
+    color: #fefefe;
+    border-style: none;
+    border-radius: 5px;
+}
+
+#user_input {
+    padding: 10px 15px;
+    font-size: 1rem;
+    border-style: none;
+    border-radius: 5px;
+}

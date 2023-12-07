@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spots</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/index.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/common.css') }}">
+</head>
+
+<body>
+    <div class="container" id="content">
+        <div class="title">
+            <h1>Welcome to Spots</h1>
+            <h2>Convert YouTube or Spotify urls to mp3, or just search for any song or artist name!</h2>
+        </div>
+
+        <form onsubmit="handleSubmit(event)" id="query_data">
+            <div>
+                <!-- Radio buttons for download and search -->
+                <label>
+                    <input required type="radio" name="action" value="download"> Download
+                </label>
+                <label>
+                    <input required type="radio" name="action" value="search"> Search
+                </label>
+                <label>
+                    <input required type="radio" name="action" value="artist"> Artist
+                </label>
+            </div>
+
+            <br>
+
+            <!-- Input field -->
+            <input placeholder="Enter search term here..." type="text" id="user_input" name="user_input" required>
+
+            <br>
+
+            <!-- Submit button -->
+            <input type="submit" value="Submit">
+        </form>
+    </div>
+
+    <script>
+        function handleSubmit (e) {
+            e.preventDefault();
+
+            const radioButtons = document.getElementsByName('action');
+            const userInput = document.getElementById('user_input').value;
+
+            // Determine the selected action
+            let selectedAction;
+            radioButtons.forEach(button => {
+                if (button.checked) {
+                    selectedAction = button.value;
+                }
+            });
+
+            // Construct the data object
+            const formData = {
+                action: selectedAction,
+                user_input: userInput,
+            };
+
+            // Sending a POST request to '/handle_query' with JSON data
+            fetch('/handle_query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData),
+            })
+                .then(response => {
+                    // Check for redirect status code
+                    if (response.redirected) {
+                        // Manually redirect to the specified URL
+                        window.location.href = response.url;
+                    } else {
+                        // Handle other responses
+                        console.log('Server response:', response);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+
+            // display loading UI
+
+            const container = document.getElementById("content");
+            container.innerHTML = `<div>
+                <p>Searching for ${userInput}</p>
+                <img src="{{ url_for('static', filename="Magnify-1s-401px.svg")}}">
+            </div>`;
+        }
+    </script>
+</body>
+
+</html>

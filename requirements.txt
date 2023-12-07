@@ -1,0 +1,11 @@
+spotipy
+lyricsgenius
+moviepy
+mutagen
+tenacity
+pytube
+python-dotenv
+requests
+Flask
+youtube-search
+flask[async]

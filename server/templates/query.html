@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spots - Query [{{ resource }}]</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/query.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/common.css') }}">
+</head>
+
+<body>
+    <a href="/">
+        <img id="navigation" src="{{ url_for('static', filename='house-svgrepo-com.svg')}}" alt="Home icon" width="50"
+            height="50">
+    </a>
+    <!-- Search result -->
+    {% if resource == "single" %}
+    {% if not recommended_tracks %}
+    <!-- download single track -->
+    <div class="container">
+        <div class="queryData single">
+            <img src="{{ data['cover'] }}" alt="Search result cover image" width="250" height="250">
+            <p>{{ data["artist"] }} - {{ data["title"] }}</p>
+        </div>
+
+        <div id="single">
+            <form id="singleData">
+                {% for key, value in data.__dict__.items() %}
+                <input name="{{ key }}" value="{{ value }}">
+                {% endfor %}
+            </form>
+            <button onclick="handleSubmit(event, undefined, 'single')" id="single" type="submit">
+                <img src="{{ url_for('static', filename='download-svgrepo-com.svg') }}" width="45" height="45">
+                <p>{{ data["title"] }}</p>
+            </button>
+        </div>
+    </div>
+    {% else %}
+    <!-- display recommended tracks -->
+    <div class="playlistContainer">
+        <div class="queryData">
+            <div>
+                <img src="{{ data['cover'] }}" alt="Search result cover image" width="250" height="250">
+                <p>{{ data["artist"] }} - {{ data["title"] }}</p>
+            </div>
+        </div>
+        <div id="playlist">
+            <div class="playlistContent">
+                <form id="playlistForm" onsubmit="handleSubmit(event, this, 'playlist')">
+                    <div class="playlistItems">
+                        <label>
+                            <input id="{{ data['title'] }}" type="checkbox" value="{{ data }}" checked>
+                            <p>{{ data["artist"] }} - {{ data["title"] }}</p>
+                            <strong>{{ size }} MB</strong>
+                        </label>
+                        <div id="recommendations">
+                            <h2>Recommended tracks:</h2>
+                            {% for track in recommended_tracks %}
+                            <label>
+                                <input id="{{ track[0] }}" type="checkbox" value="{{ track[1] }}">
+                                <p>{{ track[0] }}</p>
+                                <strong>{{ track[2] }} MB</strong>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <button type="button" onclick="toggleSelectAll()" id="selectAllButton">Deselect all</button>
+
+                    <button type="submit">
+                        <img src="{{ url_for('static', filename='download-svgrepo-com.svg') }}" width="45" height="45">
+                        <p>{{ data["title"] }}</p>
+                        <strong>{{ size }} MB</strong>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% elif resource == "artist" %}
+    <!-- display artist albums -->
+    <div class="artistContainer">
+        <div class="queryData">
+            <div>
+                <img src="{{ data['image'] }}" alt="Search result cover image" width="250" height="250">
+                <p>{{ data["name"] }}</p>
+            </div>
+        </div>
+
+        <div id="artist">
+            <div class="artistContent">
+                <h2>Select albums to download:</h2>
+
+                <form id="artistForm" onsubmit="handleSubmit(event, this, 'artist')">
+                    <div class="playlistItems">
+                        {% for album in albums %}
+                        <div class="artistAlbum">
+                            <div role="button" class="albumData" onclick="toggleSelectAll(this)">
+                                <img src="{{ album['album']['cover'] }}" alt="Album cover image" width="200"
+                                    height="200">
+                                <p>{{ album['album']['name'] }}</p>
+                            </div>
+
+                            <div class="albumTracks">
+                                {% for data in album['playlist'] %}
+                                <label>
+                                    <input id="{{ data[0] }}" type="checkbox" value="{{ data[1] }}" checked> {{ data[0]
+                                    }}
+                                    <strong>{{ data[2] }} MB</strong>
+                                </label>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <button type="button" onclick="toggleSelectAll()" id="selectAllButton">Deselect all</button>
+
+                    <button type="submit">
+                        <img src="{{ url_for('static', filename='download-svgrepo-com.svg') }}" width="45" height="45">
+                        <p>{{ data["name"] }}</p>
+                        <strong></strong>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% elif resource == "playlist" %}
+    <!-- display playlist data -->
+    <div class="playlistContainer">
+        <div class="queryData">
+            <div>
+                <img src="{{ data['cover'] }}" alt="Search result cover image" width="250" height="250">
+                {% if data["artist"] %}
+                <p>{{ data["artist"] }} - {{ data["name"] }}</p>
+                {% else %}
+                <p>{{ data["name"] }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <div id="playlist">
+            <div class="playlistContent">
+                <h2>Select songs to download:</h2>
+
+                <form id="playlistForm" onsubmit="handleSubmit(event, this, 'playlist')">
+                    <div class="playlistItems">
+                        {% for data in playlist %}
+                        <label>
+                            <input id="{{ data[0] }}" type="checkbox" value='{{ data[1] | tojson }}' checked>
+                            <p>{{ data[0] }}</p>
+                            <strong>{{ data[2] }} MB</strong>
+                        </label>
+                        {% endfor %}
+                    </div>
+
+                    <button type="button" onclick="toggleSelectAll()" id="selectAllButton">Deselect all</button>
+
+                    <button type="submit">
+                        <img src="{{ url_for('static', filename='download-svgrepo-com.svg') }}" width="45" height="45">
+                        {% if data["artist"] %}
+                        <p>{{ data["artist"] }} - {{ data["name"] }}</p>
+                        {% else %}
+                        <p>{{ data["name"] }}</p>
+                        {% endif %}
+
+                        <strong></strong>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <script>
+        function handleSubmit (e, form, resourceType) {
+            e.preventDefault();
+
+            let body;
+
+            const isPlaylist = resourceType === "playlist" || resourceType === "artist";
+
+            if (isPlaylist) {
+                // Get all checked checkboxes
+                const selectedCheckboxes = Array.from(form.querySelectorAll('input[type="checkbox"]:checked'));
+
+                // Extract values from checked checkboxes
+                const selectedSongs = selectedCheckboxes.map(checkbox => checkbox.value);
+
+                body = JSON.stringify({
+                    selected_songs: selectedSongs,
+                    playlist_name: "{{ data['name'] }}"
+                });
+            } else {
+                const container = document.getElementById("singleData");
+                const formData = new FormData(container);
+                body = formData;
+            }
+
+            const url = '/download/' + resourceType;
+
+            const postData = {
+                method: 'POST',
+                body: body,
+            };
+
+            if (isPlaylist) {
+                postData.headers = {
+                    'Content-Type': 'application/json',
+                };
+            }
+
+            // Sending a post request to '/download/playlist' with selected_songs as form data
+            fetch(url, postData)
+                .then(response => response.text())
+                .then(data => {
+                    // display response
+                    const container = document.getElementById(resourceType);
+                    container.innerHTML = `<p>${data}</p>`;
+                });
+
+            // display loading UI
+            const artist = "{{ data['artist'] }}",
+                name = "{{ data['name'] or data['title'] }}";
+
+            const title = artist ? `${artist} - ${name}` : name;
+
+            const container = document.getElementById(resourceType);
+            if (!'{{ recommended_tracks }}' && '{{ resource }}' === 'single') {
+                const parent = document.querySelector(".container");
+                parent.classList.add('fetching');
+            } else {
+                const parent = document.getElementById(resourceType);
+                parent.classList.add('fetching');
+            }
+
+            container.innerHTML = `<img src="{{ url_for('static', filename='Ball-1s-500px.svg')}}">`;
+        }
+
+        function toggleSelectAll (e) {
+            const container = e?.parentElement || document;
+
+            checkboxes = container.querySelectorAll('input[type="checkbox"]');
+
+            const selectAllButton = document.querySelector('#selectAllButton');
+
+            const allSelected = Array.from(checkboxes).every(checkbox => checkbox.checked);
+
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = !allSelected;
+            });
+
+            selectAllButton.textContent = allSelected ? 'Select all' : 'Deselect all';
+
+            if ('{{ resource }}' === 'artist') {
+                toggleActiveContainer(container);
+            }
+
+            if ('{{ resource }}' === 'single' && !'{{ recommended_tracks }}') {
+                ;
+            } else {
+                totalSize();
+            }
+        }
+
+        if ('{{ resource }}' === 'artist') {
+            const containers = document.querySelectorAll('.artistAlbum');
+            containers.forEach(container => {
+                toggleActiveContainer(container);
+                container.addEventListener('change', () => toggleActiveContainer(container));
+            });
+        }
+
+        const form = document.querySelector('form');
+        form.addEventListener('change', totalSize);
+
+        totalSize();
+
+        function totalSize () {
+            // get form
+            const form = document.querySelector('form');
+
+            // get list of checked items
+            const checkedItems = Array.from(form.querySelectorAll('input[type="checkbox"]:checked'));
+
+            let total = 0;
+
+            // get the size of each selected item
+            checkedItems.forEach(item => {
+                const ancestor = item.parentElement;
+
+                // get the size element
+                const size = ancestor.querySelector('strong').innerHTML.replace(" MB", "");
+
+                total += Number(size);
+            });
+
+            const submitButton = document.querySelector('button[type="submit"]'),
+                totalSize = submitButton.querySelector('strong');
+
+            totalSize.innerHTML = `${total} MB`;
+        }
+
+        function toggleActiveContainer (container) {
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+            if (Array.from(checkboxes).every(item => item.checked)) {
+                container.style.borderColor = "#f0f0f0";
+            } else {
+                container.style.borderColor = "black";
+            }
+        }
+    </script>
+
+</body>
+
+</html>

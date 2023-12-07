@@ -1,0 +1,8 @@
+Music
+spots_venv
+.env
+.cache
+.vscode
+__pycache__
+tests/test_download_urls.py
+q.txt
