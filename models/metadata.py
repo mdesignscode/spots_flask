@@ -15,6 +15,7 @@ class Metadata:
         album: str = "",
         lyrics: str = "",
         release_date: str | None = None,
+        preview_url: str = "",
     ) -> None:
         """Creates a metadata object
 
@@ -27,6 +28,7 @@ class Metadata:
             album (str, optional): the album name. Defaults to ""
             lyrics (str, optional): the lyrics of the song. Defaults to ""
             release_date (str | None, optional): the release date of the song. Defaults to None
+            preview_url (str, optional): A link to a 30 second preview (MP3 format) of the track.
         """
         self.title: str = title
         self.artist: str = artist
@@ -36,3 +38,4 @@ class Metadata:
         self.lyrics: str = lyrics
         self.release_date: str | None = release_date
         self.link: str = link
+        self.preview_url = preview_url
