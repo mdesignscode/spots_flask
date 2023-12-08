@@ -35,6 +35,9 @@
     align-items: center;
     gap: 4px;
     cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: centeinherit
 }
 
 .container form button {
@@ -60,4 +63,15 @@
     font-size: 1rem;
     border-style: none;
     border-radius: 5px;
+}
+
+@media (max-width: 768px) {
+    #query_data div {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    #content {
+        max-width: 90%
+    }
 }

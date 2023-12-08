@@ -1,0 +1,6 @@
+This favicon was generated using the following font:
+
+- Font Title: Gochi Hand
+- Font Author: Copyright (c) 2011, Huerta Tipografica (www.huertatipografica.com.ar info@huertatipografica.com.ar), with Reserved Font Names "Gochi" and "Gochi Hand"
+- Font Source: http://fonts.gstatic.com/s/gochihand/v23/hES06XlsOjtJsgCkx1PkTo71-n0nXWA.ttf
+- Font License: SIL Open Font License, 1.1 (http://scripts.sil.org/OFL))

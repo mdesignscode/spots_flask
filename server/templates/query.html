@@ -7,6 +7,10 @@
     <title>Spots - Query [{{ resource }}]</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles/query.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles/common.css') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
 </head>
 
 <body>
@@ -18,14 +22,14 @@
     {% if resource == "single" %}
     {% if not recommended_tracks %}
     <!-- download single track -->
-    <div class="container">
+    <div id="container">
         <div class="queryData single">
             <img src="{{ data['cover'] }}" alt="Search result cover image" width="250" height="250">
             <p>{{ data["artist"] }} - {{ data["title"] }}</p>
         </div>
 
         <div id="single">
-            <form id="singleData">
+            <form id="singleData" style="display: none;">
                 {% for key, value in data.__dict__.items() %}
                 <input name="{{ key }}" value="{{ value }}">
                 {% endfor %}
@@ -53,6 +57,10 @@
                             <input id="{{ data['title'] }}" type="checkbox" value="{{ data }}" checked>
                             <p>{{ data["artist"] }} - {{ data["title"] }}</p>
                             <strong>{{ size }} MB</strong>
+                            <audio controls>
+                                <source src="{{ data['preview_url'] }}" type="audio/mp3">
+                                Your browser does not support the audio tag.
+                            </audio>
                         </label>
                         <div id="recommendations">
                             <h2>Recommended tracks:</h2>
@@ -61,6 +69,10 @@
                                 <input id="{{ track[0] }}" type="checkbox" value="{{ track[1] }}">
                                 <p>{{ track[0] }}</p>
                                 <strong>{{ track[2] }} MB</strong>
+                                <audio controls>
+                                    <source src="{{ track[1]['preview_url'] }}" type="audio/mp3">
+                                    Your browser does not support the audio tag.
+                                </audio>
                             </label>
                             {% endfor %}
                         </div>
@@ -312,6 +324,7 @@
                 container.style.borderColor = "black";
             }
         }
+
     </script>
 
 </body>
