@@ -114,6 +114,8 @@ class GetSpotifyTrack:
             else:
                 lyrics = song.lyrics
 
+            preview_url = track["preview_url"] or ""
+
             metadata = Metadata(
                 track_name,
                 artist=artist,
@@ -123,6 +125,7 @@ class GetSpotifyTrack:
                 album=album_name,
                 lyrics=lyrics,
                 release_date=release_date,
+                preview_url=preview_url,
             )
 
             return metadata
@@ -213,7 +216,9 @@ class GetSpotifyTrack:
             elif resource_type == "track":
                 print("Processing Single...")
                 try:
-                    return self.get_track(track_id)
+                    return self.get_track(track_id), self.get_recommended_tracks(
+                        track_id
+                    )
                 except Exception as e:
                     error(e)
 
@@ -227,7 +232,9 @@ class GetSpotifyTrack:
             return track_list, playlist_data
 
     @retry(stop=stop_after_delay(30))
-    async def search_track(self, query: str) -> Tuple[Metadata, List[Metadata] | None] | None:
+    async def search_track(
+        self, query: str
+    ) -> Tuple[Metadata, List[Metadata] | None] | None:
         """Searches for a title on spotify
 
         Args:
