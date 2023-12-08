@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 """Contains functions that processes a Spotify or YouTube url"""
 
-from flask import url_for
 from logging import ERROR, basicConfig, error
 from dotenv import load_dotenv
 from tenacity import retry, stop_after_delay
@@ -11,13 +10,13 @@ from models.spotify_to_youtube import ProcessSpotifyLink
 from models.youtube_to_spotify import ProcessYoutubeLink
 from os import getenv
 from pytube import Playlist, YouTube
-from typing import cast
+from typing import Any, Dict, List, Tuple, cast
 
 load_dotenv()
 
 
 @retry(stop=stop_after_delay(60))
-def convert_url(url: str):
+async def convert_url(url: str):
     """Converts a youtube or spotify url to mp3, or a youtube video to mp3
 
     Args:
@@ -31,26 +30,17 @@ def convert_url(url: str):
         spotify = GetSpotifyTrack(url)
         # single
         if "track" in url:
-            metadata = spotify.process_url()
+            result = cast(Tuple[Metadata, List[Metadata]], spotify.process_url())
+            metadata = result[0]
             youtube = ProcessYoutubeLink(metadata=cast(Metadata, metadata))
-            youtube_title = youtube.get_title()
-            return "single", f"{youtube_title[0]} - {youtube_title[1]}", metadata
+            youtube_result = youtube.get_title()
+            return "single", f"{youtube_result[0]} - {youtube_result[1]}", (metadata, result[1], youtube_result[2])
         # playlist
         else:
             spotify_playlist, album_data = cast(
                 tuple[list[Metadata], dict[str, str]], spotify.process_url()
             )
-            playlist = []
-
-            # search for each song on YouTube
-            for metadata in spotify_playlist:
-                try:
-                    youtube = ProcessYoutubeLink(metadata=metadata)
-                    youtube_result = youtube.get_title()
-                    yt_title = f"{youtube_result[0]} - {youtube_result[1]}"
-                    playlist.append((yt_title, metadata.__dict__, youtube_result[2]))
-                except SongNotFound:
-                    pass
+            playlist = search_on_youtube(spotify_playlist)
 
             return "playlist", playlist, album_data
 
@@ -68,21 +58,7 @@ def convert_url(url: str):
                 "artist": "",
             }
 
-            playlist = []
-
-            for metadata in metadata_list:
-                # add youtube playlist name and cover to each metadata object
-                metadata.album = playlist_name
-                metadata.cover = cover
-
-                # search for youtube video
-                try:
-                    youtube = ProcessYoutubeLink(metadata=metadata)
-                    youtube_result = youtube.get_title()
-                    yt_title = f"{youtube_result[0]} - {youtube_result[1]}"
-                    playlist.append((yt_title, metadata.__dict__, youtube_result[2]))
-                except SongNotFound:
-                    pass
+            playlist = search_on_youtube(metadata_list)
 
             return "playlist", playlist, album_data
         else:
@@ -96,7 +72,7 @@ def convert_url(url: str):
                 raise InvalidURL(url)
 
             yt_to_spotify = ProcessYoutubeLink(youtube_url=url)
-            metadata = yt_to_spotify.process_youtube_url()
+            metadata = await yt_to_spotify.process_youtube_url()
             artist, title, _ = yt_to_spotify.get_title()
             return "single", f"{artist} - {title}", metadata
 
@@ -148,3 +124,26 @@ def process_youtube_playlist(url: str) -> tuple[str, list[Metadata]]:
         playlist.append(metadata)
 
     return playlist_name, playlist
+
+
+def search_on_youtube(
+    spotify_playlist: List[Metadata],
+) -> List[Tuple[str, Dict[str, Any], int]]:
+    """Searches for a list of titles on youtube
+
+    Returns:
+        List[Tuple[str, Dict[str, Any], int]]: A list of tuples containing the youtube title, a metadata dict, and the file size for each metadata in `spotify_playlist`
+    """
+    playlist = []
+
+    # search for each song on YouTube
+    for metadata in spotify_playlist:
+        try:
+            youtube = ProcessYoutubeLink(metadata=metadata)
+            youtube_result = youtube.get_title()
+            yt_title = f"{youtube_result[0]} - {youtube_result[1]}"
+            playlist.append((yt_title, metadata.__dict__, youtube_result[2]))
+        except SongNotFound:
+            pass
+
+    return playlist

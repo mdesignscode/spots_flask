@@ -135,11 +135,11 @@ class ProcessYoutubeLink(GetSpotifyTrack, ProcessSpotifyLink):
         artist = (
             search_response.author
             if search_response.author
-            else youtube_video_title.split(" - ")[0]
+            else youtube_video_title.split("-")[0]
         )
 
         title = (
-            youtube_video_title.split(" - ")[1]
+            youtube_video_title.split("-")[1]
             if "-" in youtube_video_title
             else youtube_video_title
         )

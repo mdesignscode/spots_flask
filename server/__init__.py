@@ -1,8 +1,8 @@
 #!/usr/bin/python3
 """Spots Web App"""
 
-from typing import Dict, cast
-from download_urls import convert_url
+from typing import Dict, List, Tuple, cast
+from download_urls import convert_url, search_on_youtube
 from flask import Flask, render_template, request, redirect, url_for
 from json import dumps
 from models.errors import SongNotFound
@@ -53,11 +53,7 @@ async def query(action: str):
         # search for recommended tracks on youtube
         recommended_tracks = []
         if result[1]:
-            for result in result[1]:
-                youtube = ProcessYoutubeLink(metadata=result, search_title=query)
-                title = youtube.get_title()
-                yt_title = f"{title[0]} - {title[1]}"
-                recommended_tracks.append((yt_title, result.__dict__, title[2]))
+            recommended_tracks = search_on_youtube(result[1])
 
         chdir(root_dir)
 
@@ -73,7 +69,7 @@ async def query(action: str):
 
     elif action == "download":
         # process the url
-        converter = convert_url(query)
+        converter = await convert_url(query)
 
         if not converter:
             return f"<h2>No results for {query}</h2>"
@@ -81,12 +77,21 @@ async def query(action: str):
         match converter[0]:
             # handle single
             case "single":
+                results = cast(Tuple[Metadata, List[Metadata] | None, int], converter[2])
+
+                # search for recommended tracks on youtube
+                recommended_tracks = []
+                if results[1]:
+                    recommended_tracks = search_on_youtube(results[1])
+
                 return render_template(
                     "query.html",
-                    data=converter[2],
+                    data=results[0],
                     resource="single",
                     title=converter[1],
                     action=action,
+                    recommended_tracks=recommended_tracks,
+                    size=results[2]
                 )
 
             # handle playlist
