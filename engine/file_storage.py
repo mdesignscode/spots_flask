@@ -1,69 +1,73 @@
 #!/usr/bin/python3
-"""
-Contains the FileStorage class
-"""
+"""Caches a search query"""
 
 import json
+from logging import info, INFO, basicConfig
 from typing import Dict
-
 from models.metadata import Metadata
 
+basicConfig(level=INFO)
 
 class FileStorage:
-    """serializes instances to a JSON file & deserializes back to instances"""
+    """A class for caching search results in a JSON file."""
 
-    # string - path to the JSON file
-    __file_path = ".metadata.json"
-    # dictionary - empty but will store all objects by Artist
-    __objects: Dict[str, Metadata] = {}
+    def __init__(self):
+        self.__file_path = ".metadata.json"
+        self.__objects = {"spotify": {}, "youtube": {}}
 
-    def all(self) -> Dict[str, Metadata]:
-        """"""
-        """returns the dictionary __objects
-
-        Returns:
-            Dict[str, Metadata]: a dictionary with metadata objects
-        """
+    def all(self) -> Dict[str, Dict]:
+        """Returns the stored objects."""
         return self.__objects
 
-    def new(self, obj: Metadata) -> None:
-        """sets in __objects the obj with key <obj artist name>.<obj title name>"""
-        if obj is not None:
-            key: str = obj.link
-            self.__objects[key] = obj
-
-    def save(self) -> None:
-        """serializes __objects to the JSON file (path: __file_path)"""
-        with open(file=self.__file_path, mode="w") as f:
-            objects = {key: value.__dict__ for key, value in self.__objects.items()}
-            json.dump(obj=objects, fp=f)
-
-    def reload(self) -> None:
-        """deserializes the JSON file to __objects"""
-        try:
-            with open(file=self.__file_path, mode="r") as f:
-                jo = json.load(fp=f)
-            for key in jo:
-                self.__objects[key] = Metadata(
-                    title=jo[key]["title"],
-                    artist=jo[key]["artist"],
-                    link=jo[key]["link"],
-                    cover=jo[key]["cover"],
-                    tracknumber=jo[key]["tracknumber"],
-                    album=jo[key]["album"],
-                    lyrics=jo[key]["lyrics"],
-                    release_date=jo[key]["release_date"],
-                )
-        except:
-            pass
-
-    def get(self, url: str) -> Metadata | None:
-        """Returns the object based on the url, or None if not found
+    def new(self, query: str, result, query_type: str) -> None:
+        """Adds a new search result to the cache.
 
         Args:
-            url (str): The url for metadata
+            query (str): The search query.
+            result (Metadata | Tuple[str, dict, int]): The search result.
+            query_type (str): `spotify` or `youtube`.
+        """
+        if query_type == "spotify":
+            self.__objects["spotify"][query] = result
+        elif query_type == "youtube":
+            self.__objects["youtube"][query] = result
+
+    def save(self) -> None:
+        """Serializes and saves the cache to the JSON file."""
+        with open(self.__file_path, "w") as file:
+            serialized_objects = {
+                "spotify": {
+                    key: value.__dict__
+                    for key, value in self.__objects["spotify"].items()
+                },
+                "youtube": self.__objects["youtube"],
+            }
+            json.dump(serialized_objects, file)
+
+    def reload(self) -> None:
+        """Deserializes and reloads the cache from the JSON file."""
+        try:
+            with open(self.__file_path, "r") as file:
+                loaded_objects = json.load(file)
+                self.__objects["spotify"] = {
+                    key: Metadata(**value)
+                    for key, value in loaded_objects["spotify"].items()
+                }
+                self.__objects["youtube"] = loaded_objects["youtube"]
+        except:
+            self.__objects = {
+                "spotify": {},
+                "youtube": {}
+            }
+
+    def get(self, query: str, query_type: str):
+        """Gets the search result for a given query and query type.
+
+        Args:
+            query (str): The search query.
+            query_type (str): `spotify` or `youtube`.
 
         Returns:
-            Metadata | None: the metadata for `url` or None if not exists
+            The search result for the given query and query type.
         """
-        return self.__objects.get(url, None)
+        return self.__objects[query_type].get(query, None)
