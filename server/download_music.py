@@ -6,7 +6,7 @@ from download_urls import playlist_downloader
 from engine import storage
 from flask import Blueprint, request, make_response
 from json import loads
-from models.get_spotify_track import Metadata
+from models.spotify_worker import Metadata
 from models.youtube_to_spotify import ProcessYoutubeLink
 from os import chdir
 
@@ -63,6 +63,8 @@ def download_song():
 @blueprint.route("/artist", methods=["POST"])
 @blueprint.route("/playlist", methods=["POST"])
 def download_playlist():
+    query = request.args.get("artist")
+
     from . import chdir_to_music
 
     root_dir = chdir_to_music()
@@ -73,7 +75,7 @@ def download_playlist():
 
     selected_songs = [Metadata(**loads(song)) for song in json_data]
 
-    exceptions = playlist_downloader(selected_songs, playlist_name)
+    exceptions = playlist_downloader(selected_songs, playlist_name, bool(query))
 
     storage.save()
 

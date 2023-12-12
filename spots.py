@@ -1,9 +1,10 @@
 #!/usr/bin/python3
 """Spots Web App"""
 
+from os import chdir, getenv
 from engine import storage
 from requests import get
-from server import app
+from server import app, chdir_to_music
 
 
 if __name__ == "__main__":
@@ -14,6 +15,12 @@ if __name__ == "__main__":
         print("Network error. Check your internet connection.")
         quit()
 
+    root_dir = chdir_to_music()
     storage.reload()
+    chdir(root_dir)
 
-    app.run(debug=True)
+    port = getenv("flask_port", "5000")
+
+    print(f"Serving Spots on port {port}")
+
+    app.run(port=int(port), debug=True)

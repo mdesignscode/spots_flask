@@ -7,14 +7,14 @@ from logging import basicConfig, error, ERROR
 from typing import cast
 from flask import url_for
 from models.errors import InvalidURL, TitleExistsError
-from models.get_spotify_track import GetSpotifyTrack, Metadata
+from models.spotify_worker import SpotifyWorker, Metadata
 from os import getenv
 from models.spotify_to_youtube import ProcessSpotifyLink
 from pytube import YouTube
 from re import search
 
 
-class ProcessYoutubeLink(GetSpotifyTrack, ProcessSpotifyLink):
+class ProcessYoutubeLink(SpotifyWorker, ProcessSpotifyLink):
     """Searches for a track from youtube on spotify"""
 
     def __init__(
@@ -30,7 +30,7 @@ class ProcessYoutubeLink(GetSpotifyTrack, ProcessSpotifyLink):
             search_title (str, optional): a title to be searched for. Defaults to ''.
             metadata (Metadata, optional): a spotify metadata object. Defaults to None.
         """
-        GetSpotifyTrack.__init__(self)
+        SpotifyWorker.__init__(self)
 
         self.title = search_title
 

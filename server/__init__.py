@@ -3,13 +3,11 @@
 
 from typing import Dict, List, Tuple, cast
 from download_urls import convert_url, search_on_youtube
-from flask import Flask, render_template, request, redirect, url_for
-from json import dumps
-from models.errors import SongNotFound
+from flask import Flask, render_template, request, url_for
 from models.metadata import Metadata
 from server.download_music import blueprint
 from flask import render_template, request
-from models.get_spotify_track import GetSpotifyTrack
+from models.spotify_worker import SpotifyWorker
 from models.youtube_to_spotify import ProcessYoutubeLink
 from os import chdir, getcwd, makedirs, chdir
 from os.path import join, exists, basename
@@ -34,7 +32,7 @@ async def query(action: str):
 
     # search for a title on spotify
     if action == "search":
-        spotify = GetSpotifyTrack()
+        spotify = SpotifyWorker()
         try:
             result = await spotify.search_track(query)
         except Exception as e:
@@ -77,7 +75,9 @@ async def query(action: str):
         match converter[0]:
             # handle single
             case "single":
-                results = cast(Tuple[Metadata, List[Metadata] | None, int], converter[2])
+                results = cast(
+                    Tuple[Metadata, List[Metadata] | None, int], converter[2]
+                )
 
                 # search for recommended tracks on youtube
                 recommended_tracks = []
@@ -86,12 +86,12 @@ async def query(action: str):
 
                 return render_template(
                     "query.html",
-                    data=results[0],
+                    data=results[0].__dict__,
                     resource="single",
                     title=converter[1],
                     action=action,
                     recommended_tracks=recommended_tracks,
-                    size=results[2]
+                    size=results[2],
                 )
 
             # handle playlist
@@ -106,7 +106,7 @@ async def query(action: str):
                 )
 
     elif action == "artist":
-        spotify = GetSpotifyTrack()
+        spotify = SpotifyWorker()
         result = spotify.artist_albums(query)
 
         if not result:
@@ -118,25 +118,18 @@ async def query(action: str):
 
         for album in result[0]:
             playlist = []
-            for metadata in album[0]:
-                try:
-                    # search for spotify track on youtube
-                    youtube = ProcessYoutubeLink(metadata=metadata)
-                    youtube_result = youtube.get_title()
-                    yt_title = f"{youtube_result[0]} - {youtube_result[1]}"
+            yt_list = search_on_youtube(album[0])
+            for yt_result in yt_list:
+                yt_title = yt_result[0]
 
-                    # see if song has been recorded
-                    in_table = table.get(yt_title)
+                # see if song has been recorded
+                in_table = table.get(yt_title)
 
-                    if not in_table:
-                        table[yt_title] = True
+                if not in_table:
+                    table[yt_title] = True
 
-                        playlist.append(
-                            (yt_title, dumps(metadata.__dict__), youtube_result[2])
-                        )
+                    playlist.append(yt_result)
 
-                except SongNotFound:
-                    pass
             albums.append({"album": album[1], "playlist": playlist})
 
         # filter out albums with no songs
@@ -166,7 +159,7 @@ def handle_query():
         redirect_url = url_for("query", action=action, q=user_input)
 
         # Return a redirect response
-        return redirect(redirect_url)
+        return redirect_url
 
     else:
         return "Only POST method allowed"

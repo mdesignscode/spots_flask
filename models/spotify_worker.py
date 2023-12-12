@@ -20,7 +20,7 @@ from tenacity import retry, stop_after_delay
 load_dotenv()
 
 
-class GetSpotifyTrack:
+class SpotifyWorker:
     """A class to retrieve metadata for a spotify track, album or playlist
 
     Attributes:
@@ -61,10 +61,13 @@ class GetSpotifyTrack:
             InvalidURL: if spotify url invalid.
             MetadataNotFound: if metadata not found for id.
         """
-        print("Searching for metadata on Spotify...")
-        metadata_in_file: Metadata | None = storage.get(self.track_url)
-        if metadata_in_file:
-            return metadata_in_file
+        basicConfig(level=INFO)
+        info("Searching for metadata on Spotify...")
+        url = "https://open.spotify.com/track/" + track_id
+        cache: Metadata | None = storage.get(url, "spotify")
+        if cache:
+            info(f"Cached result: {cache.artist} - {cache.title}")
+            return cache
 
         try:
             # retrieve track from spotify
@@ -127,6 +130,8 @@ class GetSpotifyTrack:
                 release_date=release_date,
                 preview_url=preview_url,
             )
+
+            storage.new(url, metadata, "spotify")
 
             return metadata
 
@@ -387,6 +392,6 @@ class GetSpotifyTrack:
         albums.append((top_tracks_playlist, top_tracks_playlist_data))
 
         return albums, {
-            "image": artist_items["images"][0]["url"],
+            "cover": artist_items["images"][0]["url"],
             "name": artist_items["name"],
         }

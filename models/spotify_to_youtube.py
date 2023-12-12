@@ -4,7 +4,6 @@
 from __future__ import unicode_literals
 from math import ceil
 from dotenv import load_dotenv
-from engine import storage
 from logging import basicConfig, error, ERROR, info, INFO
 from hashlib import md5
 from models.errors import TitleExistsError, SongNotFound, InvalidURL
@@ -57,8 +56,6 @@ class ProcessSpotifyLink:
         # no search result found
         if not self.youtube_url:
             return
-
-        storage.new(self.spotify_track)
 
         # add title to downloads history
         track_title = f"{self.spotify_track.artist} - {self.spotify_track.title}"
