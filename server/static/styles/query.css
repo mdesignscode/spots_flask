@@ -1,197 +1,177 @@
-body {
-    height: 100%;
+html {
+  height: 100%;
+}
+
+#content {
+  height: 100%;
+  width: 100%;
+  gap: 1.5rem;
+  overflow-y: auto;
 }
 
 * {
-    margin: 0;
+  margin: 0;
 }
 
-.container {
-    display: flex;
-    flex-flow: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    gap: 2rem;
-    max-width: 40%;
-    margin-inline: auto;
+ body {
+  margin: 0;
+  overflow-y: hidden;
+  height: 100%;
 }
 
-.container.fetching {
-    padding: 1rem;
+a {
+  position: absolute;
+  top: 5%;
+  left: 5%;
 }
 
-.playlistContainer,
-.artistContainer {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-    height: 100%;
-    padding: 1.5rem 1rem;
-    overflow-y: auto;
+#container,
+#queryData,
+.albumData,
+#playlistContent,
+#playlistForm,
+#listItems label,
+#listItems,
+.albumTracks,
+#content {
+  display: flex;
+  flex-direction: column;
 }
 
-.queryData div,
-.queryData,
+#container {
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 1.5rem;
+  padding-inline: 2rem;
+}
+
+#queryData,
 .albumData {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 1rem;
-    padding: 1rem;
-    font-size: 1.2rem;
+  margin-top: 1rem;
+  text-align: center;
+  align-items: center;
+  gap: 1rem;
+  font-size: 1.2rem;
+  font-weight: bold;
 }
 
-.queryData div,
-.queryData.single,
-.artistAlbum,
-.albumData {
-    border: 2px solid black;
-    border-radius: 10px;
+#queryData {
+  width: max-content;
+  margin-inline: auto;
 }
 
-.queryData img,
-.albumData img {
-    border-radius: 10px
+#queryData img {
+  border-radius: 10px;
 }
 
-#artistForm,
-#playlistForm {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-#playlist div,
-#artist div,
-.playlistItems {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-#playlist.fetching {
-    display: grid;
-    place-content: center;
-}
-
-.playlistItems label {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 15px;
-    border: 2px solid black;
-    border-radius: 10px;
-    padding: 15px 10px;
-    cursor: pointer;
-    text-align: center;
-}
-
-#artist .playlistItems {
-    gap: 2rem;
-}
-
+#queryData,
+#listItems label,
+.albumData,
 .artistAlbum {
-    padding: 1rem;
+  border: 2px solid;
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+#playlistContent {
+  gap: 1rem;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
+#playlistForm {
+  gap: 1.2rem;
+}
+
+#listItems {
+  gap: 1rem;
+}
+
+#listItems label {
+  gap: 1rem;
+  align-items: center;
+  border-color: black;
+  cursor: pointer;
+}
+
+#listItems label:hover {
+  border-color: white;
 }
 
 .albumData {
-    align-self: center;
-    margin-block: 1rem;
-    transition: all ease-in-out 0.3s;
-    cursor: pointer;
+  width: max-content;
+  margin: 1rem auto;
 }
 
-.albumData:hover {
-    border-color: #f0f0f0;
-    transform: translate(-4px, -4px)
+.albumTracks {
+  gap: 1rem;
+}
+
+#track {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+}
+
+#track p {
+  font-size: 1.3rem;
+}
+
+audio {
+  border-radius: 10px;
 }
 
 button {
-    background-color: #113e21;
-    border-style: none;
-    border-radius: 5px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 15px;
-    padding: 10px 30px;
-    cursor: pointer;
-    color: #f0f0f0;
-    letter-spacing: 3px;
+  background-color: #113e21;
+  border-style: none;
+  border-radius: 10px;
+  padding: 15px 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;;
+  color: white;
+  font-size: 1rem;
+  cursor: pointer;
 }
 
-#navigation {
-    position: absolute;
-    left: 5%;
-    top: 5%;
-    z-index: 10;
+button,
+#listItems label {
+  transition: all ease-in-out 0.3s;
+}
+
+button:hover {
+  transform: translateY(-4px)
+}
+  
+h2 {
+    text-align: center;
 }
 
 @media (min-width: 768px) {
-    html {
-        height: 100%
-    }
-
-    .playlistContainer,
-    .artistContainer{
-        display: block;
-        padding: 0;
-    }
-
-    #playlist,
-    #artist{
-        position: fixed;
-        right: 0;
-        height: 100%;
-        width: 60%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-    }
-
-    #playlistForm,
-    #artistForm{
-        overflow-y: auto;
-        padding: 1rem;
-    }
-
-    .playlistContent,
-    .artistContent{
-        height: 100%;
-    }
-    
-    .artistAlbum {
-        
-    }
-
-    h2 {
-        text-align: center;
-        margin-top: 1rem;
-    }
-
-    .playlistContainer .queryData,
-    .artistContainer .queryData {
-        position: fixed;
-        left: 0;
-        width: 40%;
-        height: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .container.fetching {
-        display: flex;
-        gap: 2rem;
-        text-align: center;
-        flex-direction: row;
-        overflow-y: auto;
-        max-width: 80%;
-    }
-
-    .fetching p {
-        font-size: 1.2rem;
-    }
+  #content {
+    flex-direction: row;
+    overflow-y: hidden;
+    justify-content: space-around;
+  }
+  
+  #queryData img {
+    width: 250px;
+    height: 250px;
+  }
+  
+  #queryData {
+    margin-block: auto;
+    height: max-content;
+  }
+  
+  #playlistContent {
+    height: 100%;
+    margin-bottom: 0;
+    padding-inline: 10px;
+    overflow-y: auto;
+  }
 }

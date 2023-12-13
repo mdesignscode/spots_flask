@@ -50,7 +50,7 @@
 .container form input[value="Submit"] {
     cursor: pointer;
     padding-block: 10px;
-    font-size: 1rem;
+    font-size: 1.25rem;
     letter-spacing: 3px;
     background-color: #113e21;
     color: #fefefe;
@@ -58,9 +58,9 @@
     border-radius: 5px;
 }
 
-#user_input {
+#userInput {
     padding: 10px 15px;
-    font-size: 1rem;
+    font-size: 1.25rem;
     border-style: none;
     border-radius: 5px;
 }

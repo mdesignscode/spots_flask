@@ -20,7 +20,7 @@
             <h2>Convert YouTube or Spotify urls to mp3, or just search for any song or artist name!</h2>
         </div>
 
-        <form onsubmit="handleSubmit(event)" id="query_data">
+        <form onsubmit="handleSubmit(event)" id="queryData">
             <div>
                 <!-- Radio buttons for download and search -->
                 <label>
@@ -37,7 +37,9 @@
             <br>
 
             <!-- Input field -->
-            <input placeholder="Enter search term here..." type="text" id="user_input" name="user_input" required>
+            <input placeholder="Select action above..." type="text" id="userInput" name="user_input" required>
+
+            <div id="feedback"></div>
 
             <br>
 
@@ -47,11 +49,64 @@
     </div>
 
     <script>
+        validateInput();
+        handleAction();
+
+        function validateInput () {
+            document.getElementById('queryData').addEventListener('change', handleAction);
+        }
+
+        function handleAction () {
+            // get form
+            const form = document.querySelector('form');
+
+            // get input
+            const input = form.querySelector("#userInput");
+
+            // get feedback container
+            const feedback = form.querySelector("#feedback");
+
+            if (!form) return;
+
+            // Get the clicked radio button using
+            const clickedRadioButton = form
+                .querySelector('input[name="action"]:checked');
+
+            function updatePlaceholder (text) {
+                input.removeAttribute("disabled");
+                input.setAttribute("placeholder", text);
+            }
+
+            // Log the value of the clicked radio button
+            if (clickedRadioButton) {
+                switch (clickedRadioButton.value) {
+                    case "download":
+                        updatePlaceholder("Paste a YouTube or Spotify url");
+                        break;
+
+                    case "search":
+                        updatePlaceholder("Enter search term as `Artist - Title`");
+                        break;
+
+                    case "artist":
+                        updatePlaceholder("Enter an artist name");
+                        break;
+
+                    default:
+                        break;
+                }
+            } else {
+                input.setAttribute("placeholder", "Select action above...");
+                input.setAttribute("disabled", "");
+            }
+
+        }
+
         function handleSubmit (e) {
             e.preventDefault();
 
             const radioButtons = document.getElementsByName('action');
-            const userInput = document.getElementById('user_input').value;
+            const userInput = document.getElementById('userInput').value;
 
             // Determine the selected action
             let selectedAction;
@@ -66,6 +121,14 @@
                 action: selectedAction,
                 user_input: userInput,
             };
+            // display loading UI
+
+            const container = document.getElementById("content");
+            container.innerHTML = `<div>
+                <p>Searching for ${userInput}</p>
+                <img src="{{ url_for('static', filename="Magnify-1s-401px.svg")}}">
+            </div>`;
+
 
             // Sending a POST request to '/handle_query' with JSON data
             fetch('/handle_query', {
@@ -75,27 +138,11 @@
                 },
                 body: JSON.stringify(formData),
             })
-                .then(response => {
-                    // Check for redirect status code
-                    if (response.redirected) {
-                        // Manually redirect to the specified URL
-                        window.location.href = response.url;
-                    } else {
-                        // Handle other responses
-                        console.log('Server response:', response);
-                    }
+                .then(response => response.text())
+                .then(data => {
+                    window.location.href = data;
                 })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
-
-            // display loading UI
-
-            const container = document.getElementById("content");
-            container.innerHTML = `<div>
-                <p>Searching for ${userInput}</p>
-                <img src="{{ url_for('static', filename="Magnify-1s-401px.svg")}}">
-            </div>`;
+                .catch(error => console.error('Error:', error));
         }
     </script>
 </body>
