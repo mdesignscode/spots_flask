@@ -1,29 +1,36 @@
-html {
+html,
+body,
+#container{
   height: 100%;
 }
 
-#content {
-  height: 100%;
-  width: 100%;
-  gap: 1.5rem;
-  overflow-y: auto;
+h2 {
+  text-align: center;
 }
 
 * {
   margin: 0;
 }
 
- body {
-  margin: 0;
-  overflow-y: hidden;
-  height: 100%;
+#content {
+  padding: 1rem;
+  gap: 1.5rem;
+  align-items: center;
 }
 
 a {
-  position: absolute;
+  position: fixed;
   top: 5%;
   left: 5%;
+  filter: drop-shadow(3px 4px 4px #000);
 }
+
+audio {
+  border-radius: 10px;
+}
+
+
+/*** flex column items ***/
 
 #container,
 #queryData,
@@ -33,52 +40,58 @@ a {
 #listItems label,
 #listItems,
 .albumTracks,
-#content {
+#content,
+.albumData,
+.artistAlbum {
   display: flex;
   flex-direction: column;
 }
 
-#container {
+#queryData {
+  align-items: center;
+}
+
+/*** single song ***/
+.single {
+  display: flex;
   align-items: center;
   justify-content: center;
-  height: 100%;
-  gap: 1.5rem;
-  padding-inline: 2rem;
+  gap: 2rem;
+  flex-direction: column-reverse;
 }
 
-#queryData,
-.albumData {
-  margin-top: 1rem;
-  text-align: center;
-  align-items: center;
-  gap: 1rem;
-  font-size: 1.2rem;
-  font-weight: bold;
+.single #content {
+  height: max-content;
 }
 
-#queryData {
-  width: max-content;
-  margin-inline: auto;
-}
-
-#queryData img {
-  border-radius: 10px;
-}
+/*** container frame ***/
 
 #queryData,
 #listItems label,
 .albumData,
 .artistAlbum {
-  border: 2px solid;
+  border: 2px solid black;
   border-radius: 10px;
   padding: 1rem;
-}
-
-#playlistContent {
   gap: 1rem;
-  margin-bottom: 1rem;
   align-items: center;
 }
+
+/*** results data ***/
+
+#queryData img,
+.albumData img {
+  border-radius: 10px;
+}
+
+#queryData p,
+.albumData p {
+  font-size: 1.25rem;
+  text-align: center;
+  font-weight: bold;
+}
+
+/*** playlist songs ***/
 
 #playlistForm {
   gap: 1.2rem;
@@ -89,23 +102,8 @@ a {
 }
 
 #listItems label {
-  gap: 1rem;
-  align-items: center;
-  border-color: black;
   cursor: pointer;
-}
-
-#listItems label:hover {
-  border-color: white;
-}
-
-.albumData {
-  width: max-content;
-  margin: 1rem auto;
-}
-
-.albumTracks {
-  gap: 1rem;
+  align-items: center
 }
 
 #track {
@@ -113,65 +111,61 @@ a {
   gap: 1rem;
   justify-content: center;
   align-items: center;
-  text-align: center;
 }
 
 #track p {
-  font-size: 1.3rem;
-}
-
-audio {
-  border-radius: 10px;
+  font-size: 1.15rem;
+  text-align: center;
 }
 
 button {
-  background-color: #113e21;
-  border-style: none;
-  border-radius: 10px;
-  padding: 15px 10px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 1rem;;
-  color: white;
-  font-size: 1rem;
-  cursor: pointer;
+  font-size: 1.1rem;
 }
 
-button,
-#listItems label {
+.fetching #playlistContent,
+.fetching #singleBox {
+  font-size: 1.25rem;
+  justify-content: center;
+}
+
+/*** artist albums ***/
+
+.artistAlbum {
+  gap: 1.5rem;
+}
+
+.albumData {
+  cursor: pointer;
   transition: all ease-in-out 0.3s;
 }
 
-button:hover {
-  transform: translateY(-4px)
+.albumData:hover {
+  transform: translateY(-4px);
+  border-color: #f0f0f0;
 }
-  
-h2 {
-    text-align: center;
+
+.albumData:active {
+  transform: translateY(1px);
+}
+
+.albumTracks {
+  gap: 1.2rem;
 }
 
 @media (min-width: 768px) {
   #content {
     flex-direction: row;
-    overflow-y: hidden;
     justify-content: space-around;
+    padding: 0;
+    height: 100%
   }
-  
-  #queryData img {
-    width: 250px;
-    height: 250px;
-  }
-  
-  #queryData {
-    margin-block: auto;
-    height: max-content;
-  }
-  
+
   #playlistContent {
     height: 100%;
-    margin-bottom: 0;
-    padding-inline: 10px;
     overflow-y: auto;
+  }
+
+  #playlistForm {
+    padding: 1rem;
   }
 }

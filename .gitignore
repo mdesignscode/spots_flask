@@ -1,7 +1,7 @@
 Music
 spots_venv
 .env
-.cache
+.cache*
 .vscode
 __pycache__
 tests/test_download_urls.py

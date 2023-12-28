@@ -11,7 +11,6 @@
     text-align: center;
 }
 
-
 .container form {
     border: 2px solid black;
     border-radius: 5px;
@@ -37,25 +36,11 @@
     cursor: pointer;
     display: flex;
     justify-content: center;
-    align-items: centeinherit
+    align-items: center;
 }
 
-.container form button {
-    cursor: pointer;
-    padding-block: 10px;
-    font-size: 1rem;
-    letter-spacing: 3px;
-}
-
-.container form input[value="Submit"] {
-    cursor: pointer;
-    padding-block: 10px;
+input[type=submit] {
     font-size: 1.25rem;
-    letter-spacing: 3px;
-    background-color: #113e21;
-    color: #fefefe;
-    border-style: none;
-    border-radius: 5px;
 }
 
 #userInput {
@@ -65,8 +50,26 @@
     border-radius: 5px;
 }
 
+#singleOnly {
+    align-self: start;
+}
+
+#singleOnly span {
+    font-size: 1.15rem;
+}
+
+#feedback {
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 14px;
+}
+
+#feedback p {
+    margin: 0;
+}
+
 @media (max-width: 768px) {
-    #query_data div {
+    #queryData div {
         flex-direction: column;
         gap: 1rem;
     }
