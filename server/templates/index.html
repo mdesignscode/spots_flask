@@ -34,12 +34,26 @@
                 </label>
             </div>
 
+            {% if username %}
+            <div>
+                <label>
+                    <input required type="radio" name="action" value="saved_tracks"> {{ username }} Saved Tracks
+                </label>
+            </div>
+            {% endif %}
+
             <br>
 
             <!-- Input field -->
             <input placeholder="Select action above..." type="text" id="userInput" name="user_input" required>
 
-            <div id="feedback"></div>
+            <div id="feedback">
+                <label style="display: none;" id="singleOnly">
+                    <input type="checkbox">
+                    <span>Download single only</span>
+                </label>
+                <p style="display: none; color: brown; font-size: 1.3rem;" id="format"></p>
+            </div>
 
             <br>
 
@@ -73,23 +87,47 @@
                 .querySelector('input[name="action"]:checked');
 
             function updatePlaceholder (text) {
-                input.removeAttribute("disabled");
-                input.setAttribute("placeholder", text);
+                if (text) {
+                    input.removeAttribute("disabled");
+                    input.setAttribute("placeholder", text);
+                    input.style.display = "block"
+                } else {
+                    input.style.display = "none"
+                }
             }
 
-            // Log the value of the clicked radio button
+            function singleCheckbox (active) {
+                const checkbox = document.getElementById("singleOnly");
+
+                checkbox.style.display = active ? "flex" : "none";
+            }
+
+            const formatText = document.getElementById("format");
+
             if (clickedRadioButton) {
                 switch (clickedRadioButton.value) {
                     case "download":
                         updatePlaceholder("Paste a YouTube or Spotify url");
+                        singleCheckbox(true);
+                        formatText.style.display = "none";
                         break;
 
                     case "search":
                         updatePlaceholder("Enter search term as `Artist - Title`");
+                        singleCheckbox(true);
                         break;
 
                     case "artist":
                         updatePlaceholder("Enter an artist name");
+                        singleCheckbox();
+                        formatText.style.display = "none";
+                        break;
+
+                    case "saved_tracks":
+                        updatePlaceholder();
+                        singleCheckbox();
+                        input.removeAttribute("required")
+                        formatText.style.display = "none";
                         break;
 
                     default:
@@ -116,19 +154,64 @@
                 }
             });
 
+            const formatText = document.getElementById("format");
+
+            if (selectedAction === "search") {
+                if (!userInput.includes("-")) {
+                    formatText.style.display = "block";
+                    formatText.innerText = "Please use format: `Artist` - `Title`";
+                    return;
+                }
+            } else if (selectedAction === "download") {
+                if (!userInput.includes("spotify") || !userInput.includes("youtu")) {
+                    formatText.style.display = "block";
+                    formatText.innerText = "Please use a Spotify or YouTube url";
+                    return;
+                }
+            } else {
+                formatText.style.display = "none";
+            }
+
             // Construct the data object
             const formData = {
                 action: selectedAction,
                 user_input: userInput,
             };
+
+            const singleOnly = document.getElementById("singleOnly");
+
             // display loading UI
 
-            const container = document.getElementById("content");
+            const container = document.getElementById("queryData");
             container.innerHTML = `<div>
-                <p>Searching for ${userInput}</p>
-                <img src="{{ url_for('static', filename="Magnify-1s-401px.svg")}}">
+                <p>Searching for ${userInput || "{{ username }}" + " saved tracks"}</p>
+                <div class="loader">
+                    <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+                        width="24px" height="30px" viewBox="0 0 24 30" style="enable-background:new 0 0 50 50;" xml:space="preserve">
+                        <rect x="0" y="10" width="4" height="10" fill="#333" opacity="0.2">
+                        <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0s" dur="0.6s" repeatCount="indefinite" />
+                        <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0s" dur="0.6s" repeatCount="indefinite" />
+                        <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0s" dur="0.6s" repeatCount="indefinite" />
+                        </rect>
+                        <rect x="8" y="10" width="4" height="10" fill="#333"  opacity="0.2">
+                        <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0.15s" dur="0.6s" repeatCount="indefinite" />
+                        <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0.15s" dur="0.6s" repeatCount="indefinite" />
+                        <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0.15s" dur="0.6s" repeatCount="indefinite" />
+                        </rect>
+                        <rect x="16" y="10" width="4" height="10" fill="#333"  opacity="0.2">
+                        <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0.3s" dur="0.6s" repeatCount="indefinite" />
+                        <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0.3s" dur="0.6s" repeatCount="indefinite" />
+                        <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0.3s" dur="0.6s" repeatCount="indefinite" />
+                        </rect>
+                    </svg>
+                </div>
             </div>`;
 
+            if (singleOnly.querySelector("input").checked)
+                formData.single = "true";
+
+            if ("{{ username }}" && selectedAction === "saved_tracks")
+                formData.username = "{{ username }}"
 
             // Sending a POST request to '/handle_query' with JSON data
             fetch('/handle_query', {

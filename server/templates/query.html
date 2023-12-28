@@ -22,16 +22,16 @@
     {% if resource == "single" %}
     {% if not recommended_tracks %}
     <!-- download single track -->
-    <div id="container">
-        <div id="single">
+    <div id="container" class="single">
+        <div id="singleBox">
             <form id="singleData" style="display: none;">
-                {% for key, value in data.__dict__.items() %}
+                {% for key, value in data.items() %}
                 <input name="{{ key }}" value="{{ value }}">
                 {% endfor %}
             </form>
-            <button onclick="handleSubmit(event, undefined, 'single')" id="single" type="submit">
+            <button onclick="handleSubmit(event, undefined, 'single')" id="singleButton" type="submit">
                 <img src="{{ url_for('static', filename='download-svgrepo-com.svg') }}" width="45" height="45">
-                <p>{{ data["title"] }}</p>
+                <p>{{ data["artist"] }} - {{ data["title"] }}</p>
             </button>
         </div>
     </div>
@@ -130,27 +130,45 @@
             {% endfor %}
         </div>
     </div>
+
+    {% elif resource == "saved_tracks" %}
+    <!-- display playlist data -->
+    <div id="container">
+        <!-- pass list of data to javascript -->
+        <div id="listItems" style="display: none;">
+            <h2>Select songs to download:</h2>
+            {% for data in playlist %}
+            <label>
+                <div id="track">
+                    <input id="{{ data[0] }}" type="checkbox" value='{{ data[1] | tojson }}' checked>
+                    <p>{{ data[0] }}</p>
+                    <strong>{{ data[2] }} MB</strong>
+                </div>
+                <div id="audio">
+                    {% if data[1]['preview_url'] %}
+                    <audio controls>
+                        <source src="{{ data[1]['preview_url'] }}" type="audio/mp3">
+                    </audio>
+                    {% endif %}
+                </div>
+            </label>
+            {% endfor %}
+        </div>
+    </div>
     {% endif %}
 
     <script>
-        const isSingle = "{{ resource }}" === "single" && !"{{ recommended_tracks }}",
+        const isSingle = "{{ resource }}" === "single" && "{{ recommended_tracks }}" === "[]",
             recommendedTracks = "{{ recommended_tracks }}",
             isArtist = "{{ resource }}" === "artist";
+
+        displayCoverDataContainer();
 
         if (isArtist) {
             document
                 .getElementById("container")
                 .style
                 .removeProperty("height");
-        }
-
-        displayCoverDataContainer();
-
-        if (!isSingle) {
-            displayPlaylistItems();
-        }
-
-        if (isSingle) {
             const containers = document.querySelectorAll('.artistAlbum');
             containers.forEach(container => {
                 toggleActiveContainer(container);
@@ -159,6 +177,7 @@
         }
 
         if (!isSingle) {
+            displayPlaylistItems();
             totalSize();
             const form = document.querySelector('form');
             form.addEventListener('change', totalSize);
@@ -223,37 +242,62 @@
             }
 
             const url = '/download/' + resourceType;
-            const query = isArtist ? "?artist=true" : ""
+            const query = isArtist ? "?artist=true" : "";
 
             const postData = {
                 method: 'POST',
                 body,
             };
 
+            // send json data if is playlist
             if (!isSingle) {
                 postData.headers = {
                     'Content-Type': 'application/json',
                 };
             }
 
+            // display loading UI
+            const artist = "{{ data['artist'] }}",
+                name = "{{ data['name'] or data['title'] }}";
+
+            const parent = document.getElementById("container")
+            parent.classList.add("fetching")
+
+            const title = artist ? `${artist} - ${name}` : name;
+
+            const containerId = isSingle ? "singleBox" : "playlistContent";
+
+            const container = document.getElementById(containerId);
+
+            container.innerHTML = `<div class="loader">
+                <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+                    width="24px" height="30px" viewBox="0 0 24 30" style="enable-background:new 0 0 50 50;" xml:space="preserve">
+                    <rect x="0" y="10" width="4" height="10" fill="#333" opacity="0.2">
+                    <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0s" dur="0.6s" repeatCount="indefinite" />
+                    <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0s" dur="0.6s" repeatCount="indefinite" />
+                    <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0s" dur="0.6s" repeatCount="indefinite" />
+                    </rect>
+                    <rect x="8" y="10" width="4" height="10" fill="#333"  opacity="0.2">
+                    <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0.15s" dur="0.6s" repeatCount="indefinite" />
+                    <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0.15s" dur="0.6s" repeatCount="indefinite" />
+                    <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0.15s" dur="0.6s" repeatCount="indefinite" />
+                    </rect>
+                    <rect x="16" y="10" width="4" height="10" fill="#333"  opacity="0.2">
+                    <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0.3s" dur="0.6s" repeatCount="indefinite" />
+                    <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0.3s" dur="0.6s" repeatCount="indefinite" />
+                    <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0.3s" dur="0.6s" repeatCount="indefinite" />
+                    </rect>
+                </svg>
+            </div>`;
+
             // Sending a post request to '/download/playlist' with selected_songs as form data
             fetch(url + query, postData)
                 .then(response => response.text())
                 .then(data => {
                     // display response
-                    const container = document.getElementById(resourceType);
+                    const container = document.getElementById(containerId);
                     container.innerHTML = `<p>${data}</p>`;
                 });
-
-            // display loading UI
-            const artist = "{{ data['artist'] }}",
-                name = "{{ data['name'] or data['title'] }}";
-
-            const title = artist ? `${artist} - ${name}` : name;
-
-            const container = document.getElementById("playlistContent");
-
-            container.innerHTML = `<img src="{{ url_for('static', filename='Ball-1s-500px.svg')}}">`;
         }
 
         function toggleSelectAll (e) {
@@ -323,7 +367,19 @@
             artistContainer.id = "content";
             artistContainer.appendChild(coverContainer);
 
-            container.appendChild(artistContainer);
+            const nodeList = container.childNodes
+
+            // Convert NodeList to an array
+            const nodeArray = Array.from(nodeList);
+
+            // Add the new element to the front of the array
+            nodeArray.unshift(artistContainer);
+
+            // Remove existing elements from the parent
+            nodeList.forEach((node) => node.parentNode.removeChild(node));
+
+            // Add modified array back to the parent
+            nodeArray.forEach((node) => container.appendChild(node));
         }
 
         function displayPlaylistItems () {
@@ -347,6 +403,7 @@
             // create toggle all button
             const toggleButton = document.createElement('button');
             toggleButton.id = "selectAllButton";
+            toggleButton.type = "button"
             toggleButton.onclick = toggleSelectAll;
             toggleButton.innerText = "Deselect all";
 

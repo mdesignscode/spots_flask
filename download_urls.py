@@ -18,11 +18,12 @@ load_dotenv()
 
 
 @retry(stop=stop_after_delay(60))
-async def convert_url(url: str):
+async def convert_url(url: str, single: str | None = None):
     """Converts a youtube or spotify url to mp3, or a youtube video to mp3
 
     Args:
         url (str): url to be converted
+        single: (str | None, optional): don't search for recommended tracks. Defaults to None
 
     Raises:
         InvalidURL: if provided url not available
@@ -32,7 +33,7 @@ async def convert_url(url: str):
         spotify = SpotifyWorker(url)
         # single
         if "track" in url:
-            result = cast(Tuple[Metadata, List[Metadata]], spotify.process_url())
+            result = cast(Tuple[Metadata, List[Metadata]], spotify.process_url(single))
             metadata = result[0]
             youtube = ProcessYoutubeLink(metadata=metadata)
             youtube_result = youtube.get_title()
@@ -47,6 +48,8 @@ async def convert_url(url: str):
                 tuple[list[Metadata], dict[str, str]], spotify.process_url()
             )
             playlist = search_on_youtube(spotify_playlist)
+
+            storage.save()
 
             return "playlist", playlist, album_data
 
@@ -84,7 +87,9 @@ async def convert_url(url: str):
 
 
 @retry(stop=stop_after_delay(60))
-def playlist_downloader(playlist: list[Metadata], album_folder: str, unique_path: bool = False) -> list[str]:
+def playlist_downloader(
+    playlist: list[Metadata], album_folder: str, unique_path: bool = False
+) -> list[str]:
     """downloads a playlist
 
     Args:
@@ -104,7 +109,9 @@ def playlist_downloader(playlist: list[Metadata], album_folder: str, unique_path
 
         try:
             spotify = ProcessSpotifyLink(track)
-            folder = album_folder if not unique_path else f"{album_folder}/{track.album}"
+            folder = (
+                album_folder if not unique_path else f"{album_folder}/{track.album}"
+            )
             spotify.download_youtube_video(folder)
         except Exception as e:
             basicConfig(level=ERROR)

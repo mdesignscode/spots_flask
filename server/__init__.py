@@ -9,7 +9,7 @@ from server.download_music import blueprint
 from flask import render_template, request
 from models.spotify_worker import SpotifyWorker
 from models.youtube_to_spotify import ProcessYoutubeLink
-from os import chdir, getcwd, makedirs, chdir
+from os import chdir, getcwd, getenv, makedirs, chdir
 from os.path import join, exists, basename
 
 
@@ -19,22 +19,30 @@ app.register_blueprint(blueprint)
 
 @app.route("/")
 def home():
-    return render_template("index.html")
+    spotify = SpotifyWorker()
+    username = spotify.get_user()
+
+    return render_template("index.html", username=username)
 
 
 @app.route("/query/<action>")
 async def query(action: str):
     root_dir = chdir_to_music()
     query = request.args.get("q")
+    single = request.args.get("single")
+    username = request.args.get("username")
 
     if not query:
-        return "<h2>Search Query Missing</h2>"
+        if not username:
+            return "<h2>Search Query Missing</h2>"
+        else:
+            query = ""
 
     # search for a title on spotify
     if action == "search":
         spotify = SpotifyWorker()
         try:
-            result = await spotify.search_track(query)
+            result = await spotify.search_track(query, single)
         except Exception as e:
             return str(e)
 
@@ -57,7 +65,7 @@ async def query(action: str):
 
         return render_template(
             "query.html",
-            data=metadata,
+            data=metadata.__dict__,
             size=youtube_result[2],
             resource="single",
             title=youtube_title,
@@ -67,7 +75,7 @@ async def query(action: str):
 
     elif action == "download":
         # process the url
-        converter = await convert_url(query)
+        converter = await convert_url(query, single)
 
         if not converter:
             return f"<h2>No results for {query}</h2>"
@@ -143,6 +151,25 @@ async def query(action: str):
             action=action,
         )
 
+    elif action == "saved_tracks":
+        spotify = SpotifyWorker()
+        saved_tracks = spotify.user_saved_tracks()
+
+        if saved_tracks:
+            cover = url_for("static", filename="avatar.jpg")
+            data = {"cover": cover, "name": username}
+
+            return render_template(
+                "query.html",
+                data=data,
+                resource="saved_tracks",
+                playlist=search_on_youtube(saved_tracks),
+                action=action,
+            )
+
+        else:
+            return "No saved tracks found"
+
     else:
         return "<h2>Only `Download` `Artist, or `Search` actions allowed</p>"
 
@@ -154,9 +181,17 @@ def handle_query():
         json_dict = cast(Dict[str, str], request.json)
         action = json_dict["action"]
         user_input = json_dict["user_input"]
+        single = json_dict.get("single")
+        username = json_dict.get("username")
 
         # Construct the redirect URL
         redirect_url = url_for("query", action=action, q=user_input)
+
+        if single:
+            redirect_url += "&single=true"
+
+        if username:
+            redirect_url += f"&username={username}"
 
         # Return a redirect response
         return redirect_url

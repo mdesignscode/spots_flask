@@ -10,11 +10,12 @@ from lyricsgenius import Genius
 from models.errors import InvalidURL, SongNotFound
 from models.metadata import Metadata
 from os import getenv
-from re import search, match
+from re import search
 from requests.exceptions import ReadTimeout
 from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyClientCredentials
 from spotipy import Spotify
+from spotipy.util import prompt_for_user_token
 from tenacity import retry, stop_after_delay
 
 load_dotenv()
@@ -28,11 +29,7 @@ class SpotifyWorker:
     """
 
     # create a Spotify API client
-    spotify = Spotify(
-        auth_manager=SpotifyClientCredentials(
-            client_id=getenv("SPOTIPY_CLIENT_ID"), client_secret=getenv("client_secret")
-        )
-    )
+    spotify = Spotify(auth_manager=SpotifyClientCredentials())
 
     # create genius api for lyrics
     genius = Genius(getenv("lyricsgenius_key"))
@@ -44,6 +41,23 @@ class SpotifyWorker:
             track_url (str, optional): A spotify url to be processed. Defaults to "".
         """
         self.track_url: str = track_url
+
+        self.signin()
+
+    def get_user(self) -> str | None:
+        """Retrieves the current user
+
+        Args:
+            username (str): the user's name
+            scope (str, optional): the scope to read user data. Defaults to "user-library-read".
+
+        Returns:
+            str: The user's display name
+        """
+        user = self.spotify.current_user()
+
+        if user:
+            return user["display_name"]
 
     @retry(stop=stop_after_delay(max_delay=60))
     def get_track(self, track_id: str) -> Metadata:
@@ -141,9 +155,12 @@ class SpotifyWorker:
             raise InvalidURL(self.track_url)
 
     @retry(stop=stop_after_delay(60))
-    def process_url(self):
+    def process_url(self, single: str | None = None):
         """
         Processes a Spotify URL and returns metadata information.
+
+        Args:
+            single: (str | None, optional): don't search for recommended tracks. Defaults to None
 
         Returns:
             Union[Tuple[List[Metadata], Dict[str, Unknown]], Metadata, None]:
@@ -221,8 +238,9 @@ class SpotifyWorker:
             elif resource_type == "track":
                 print("Processing Single...")
                 try:
-                    return self.get_track(track_id), self.get_recommended_tracks(
-                        track_id
+                    return (
+                        self.get_track(track_id),
+                        self.get_recommended_tracks(track_id) if not single else None,
                     )
                 except Exception as e:
                     error(e)
@@ -238,12 +256,13 @@ class SpotifyWorker:
 
     @retry(stop=stop_after_delay(30))
     async def search_track(
-        self, query: str
+        self, query: str, single: str | None = None
     ) -> Tuple[Metadata, List[Metadata] | None] | None:
         """Searches for a title on spotify
 
         Args:
             query (str): the title to be searched for
+            single: (str | None, optional): don't search for recommended tracks. Defaults to None
 
         Raises:
             SongNotFound: the `query` is not found on spotify.
@@ -304,12 +323,15 @@ class SpotifyWorker:
             id = album["tracks"]["items"][0]["id"]
 
             try:
-                return self.get_track(id), self.get_recommended_tracks(id)
+                return (
+                    self.get_track(id),
+                    self.get_recommended_tracks(id) if not single else None,
+                )
             except SongNotFound:
                 info(f"{query} not found")
                 return
 
-        return single_data, self.get_recommended_tracks(id)
+        return single_data, self.get_recommended_tracks(id) if not single else None
 
     @retry(stop=stop_after_delay(60))
     def get_recommended_tracks(self, id: str) -> List[Metadata] | None:
@@ -395,3 +417,56 @@ class SpotifyWorker:
             "cover": artist_items["images"][0]["url"],
             "name": artist_items["name"],
         }
+
+    @retry(stop=stop_after_delay(60))
+    def user_saved_tracks(self) -> list[Metadata] | None:
+        """retrieves a user's saved tracks
+
+        Returns:
+            list[Metadata] | None: A list of Metadata objects or None
+        """
+        limit = 50
+        user_tracks = self.spotify.current_user_saved_tracks(limit=limit)
+
+        if user_tracks:
+            # get first 50 tracks's ids
+            id_list = [track["track"]["id"] for track in user_tracks["items"]]
+
+            # check if there are more tracks
+            next_page = user_tracks["next"]
+            if next_page:
+                index = limit
+
+                # paginate through the rest of the tracks
+                while next_page:
+                    user_tracks = self.spotify.current_user_saved_tracks(
+                        offset=index, limit=limit
+                    )
+
+                    if user_tracks:
+                        # append the next set of ids
+                        [
+                            id_list.append(track["track"]["id"])
+                            for track in user_tracks["items"]
+                        ]
+
+                    index += limit
+
+            # get metadata for each track
+            return [self.get_track(id) for id in id_list]
+
+    def signin(self):
+        """signs into a user's spotify account"""
+        # sign user in if username present in env
+        username = getenv("username")
+        if not username:
+            return
+
+        scope = getenv("scope") or "user-library-read"
+
+        token = prompt_for_user_token(username, scope)
+
+        if token:
+            self.spotify = Spotify(auth=token)
+        else:
+            raise Exception("Can't get token for", username)
