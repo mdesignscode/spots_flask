@@ -9,8 +9,9 @@ from server.download_music import blueprint
 from flask import render_template, request
 from models.spotify_worker import SpotifyWorker
 from models.youtube_to_spotify import ProcessYoutubeLink
-from os import chdir, getcwd, getenv, makedirs, chdir
+from os import chdir, getcwd, makedirs, chdir
 from os.path import join, exists, basename
+from engine import storage
 
 
 app = Flask(__name__, static_url_path="/static")
@@ -154,6 +155,7 @@ async def query(action: str):
     elif action == "saved_tracks":
         spotify = SpotifyWorker()
         saved_tracks = spotify.user_saved_tracks()
+        storage.save()
 
         if saved_tracks:
             cover = url_for("static", filename="avatar.jpg")

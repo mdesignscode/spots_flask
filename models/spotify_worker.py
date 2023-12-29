@@ -425,10 +425,13 @@ class SpotifyWorker:
         Returns:
             list[Metadata] | None: A list of Metadata objects or None
         """
+        info("Searching for user saved tracks...")
+        self.signin()
         limit = 50
         user_tracks = self.spotify.current_user_saved_tracks(limit=limit)
 
         if user_tracks:
+            total_tracks = user_tracks["total"]
             # get first 50 tracks's ids
             id_list = [track["track"]["id"] for track in user_tracks["items"]]
 
@@ -438,7 +441,7 @@ class SpotifyWorker:
                 index = limit
 
                 # paginate through the rest of the tracks
-                while next_page:
+                while index <= total_tracks:
                     user_tracks = self.spotify.current_user_saved_tracks(
                         offset=index, limit=limit
                     )
@@ -462,11 +465,14 @@ class SpotifyWorker:
         if not username:
             return
 
+        info(f"Signing in to {username} on Spotify")
+
         scope = getenv("scope") or "user-library-read"
 
         token = prompt_for_user_token(username, scope)
 
         if token:
+            info("Signed in")
             self.spotify = Spotify(auth=token)
         else:
             raise Exception("Can't get token for", username)
