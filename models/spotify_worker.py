@@ -426,7 +426,6 @@ class SpotifyWorker:
             list[Metadata] | None: A list of Metadata objects or None
         """
         info("Searching for user saved tracks...")
-        self.signin()
         limit = 50
         user_tracks = self.spotify.current_user_saved_tracks(limit=limit)
 
