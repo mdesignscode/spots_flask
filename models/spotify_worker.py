@@ -9,7 +9,7 @@ from logging import info, basicConfig, error, ERROR, INFO
 from lyricsgenius import Genius
 from models.errors import InvalidURL, SongNotFound
 from models.metadata import Metadata
-from os import getenv
+from os import environ, getenv
 from re import search
 from requests.exceptions import ReadTimeout
 from spotipy.exceptions import SpotifyException
@@ -41,8 +41,6 @@ class SpotifyWorker:
             track_url (str, optional): A spotify url to be processed. Defaults to "".
         """
         self.track_url: str = track_url
-
-        self.signin()
 
     def get_user(self) -> str | None:
         """Retrieves the current user
@@ -143,6 +141,7 @@ class SpotifyWorker:
                 lyrics=lyrics,
                 release_date=release_date,
                 preview_url=preview_url,
+                spotify_id=track_id,
             )
 
             storage.new(url, metadata, "spotify")
@@ -464,9 +463,9 @@ class SpotifyWorker:
         if not username:
             return
 
-        info(f"Signing in to {username} on Spotify")
-
         scope = getenv("scope") or "user-library-read"
+
+        info(f"Signing in to {username} on Spotify with scope: {scope}")
 
         token = prompt_for_user_token(username, scope)
 
@@ -475,3 +474,15 @@ class SpotifyWorker:
             self.spotify = Spotify(auth=token)
         else:
             raise Exception("Can't get token for", username)
+
+    @retry(stop=stop_after_delay(60))
+    def modify_saved_tracks_playlist(self, action: str, tracks: str):
+        environ["scope"] = "user-library-modify"
+        self.signin()
+        info(f"Removing {tracks} from playlist...")
+        if action == "add":
+            self.spotify.current_user_saved_tracks_add(tracks)
+        elif action == "delete":
+            self.spotify.current_user_saved_tracks_delete([tracks])
+        else:
+            raise TypeError("`delete` or `add` actions only")

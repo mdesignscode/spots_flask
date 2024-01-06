@@ -162,6 +162,7 @@ def search_on_youtube(
     for index, metadata in enumerate(spotify_playlist):
         basicConfig(level=INFO)
         info(f"Searching for track {index + 1}/{len(spotify_playlist)} on YouTube...")
+
         try:
             # get cached result
             query = f"{metadata.artist} - {metadata.title}"
@@ -178,6 +179,9 @@ def search_on_youtube(
 
                 storage.new(query, result, "youtube")
                 playlist.append(result)
+
+                if index % 10:
+                    storage.save()
         except SongNotFound:
             pass
         except InvalidURL:

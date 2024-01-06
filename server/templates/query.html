@@ -134,13 +134,24 @@
     {% elif resource == "saved_tracks" %}
     <!-- display playlist data -->
     <div id="container">
+        <dialog>
+            <div id="removedResponse"></div>
+            <form method="dialog">
+                <button>OK</button>
+            </form>
+        </dialog>
+
         <!-- pass list of data to javascript -->
         <div id="listItems" style="display: none;">
             <h2>Select songs to download:</h2>
             {% for data in playlist %}
             <label>
+                <div>
+                    <img src="{{ data[1]['cover'] }}" alt="Cover image" width="60" height="60">
+                </div>
                 <div id="track">
-                    <input id="{{ data[0] }}" type="checkbox" value='{{ data[1] | tojson }}' checked>
+                    <input data-id="{{ data[1]['spotify_id'] }}" id="{{ data[0] }}" type="checkbox"
+                        value='{{ data[1] | tojson }}' checked>
                     <p>{{ data[0] }}</p>
                     <strong>{{ data[2] }} MB</strong>
                 </div>
@@ -160,9 +171,17 @@
     <script>
         const isSingle = "{{ resource }}" === "single" && "{{ recommended_tracks }}" === "[]",
             recommendedTracks = "{{ recommended_tracks }}",
-            isArtist = "{{ resource }}" === "artist";
+            isArtist = "{{ resource }}" === "artist",
+            isSavedTracks = "{{ resource }}" === "saved_tracks";
 
         displayCoverDataContainer();
+
+        if (!isSingle) {
+            displayPlaylistItems();
+            totalSize();
+            const form = document.querySelector('form');
+            form.addEventListener('change', totalSize);
+        }
 
         if (isArtist) {
             document
@@ -174,13 +193,6 @@
                 toggleActiveContainer(container);
                 container.addEventListener('change', () => toggleActiveContainer(container));
             });
-        }
-
-        if (!isSingle) {
-            displayPlaylistItems();
-            totalSize();
-            const form = document.querySelector('form');
-            form.addEventListener('change', totalSize);
         }
 
         // functions
@@ -260,8 +272,8 @@
             const artist = "{{ data['artist'] }}",
                 name = "{{ data['name'] or data['title'] }}";
 
-            const parent = document.getElementById("container")
-            parent.classList.add("fetching")
+            const parent = document.getElementById("container");
+            parent.classList.add("fetching");
 
             const title = artist ? `${artist} - ${name}` : name;
 
@@ -271,18 +283,18 @@
 
             container.innerHTML = `<div class="loader">
                 <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
-                    width="24px" height="30px" viewBox="0 0 24 30" style="enable-background:new 0 0 50 50;" xml:space="preserve">
-                    <rect x="0" y="10" width="4" height="10" fill="#333" opacity="0.2">
+                    width="100px" height="100px" viewBox="0 0 100 100" style="enable-background:new 0 0 50 50;" xml:space="preserve">
+                    <rect x="0" y="10" width="4" height="10" fill="#113e21" opacity="0.2">
                     <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0s" dur="0.6s" repeatCount="indefinite" />
                     <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0s" dur="0.6s" repeatCount="indefinite" />
                     <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0s" dur="0.6s" repeatCount="indefinite" />
                     </rect>
-                    <rect x="8" y="10" width="4" height="10" fill="#333"  opacity="0.2">
+                    <rect x="8" y="10" width="4" height="10" fill="#113e21"  opacity="0.2">
                     <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0.15s" dur="0.6s" repeatCount="indefinite" />
                     <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0.15s" dur="0.6s" repeatCount="indefinite" />
                     <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0.15s" dur="0.6s" repeatCount="indefinite" />
                     </rect>
-                    <rect x="16" y="10" width="4" height="10" fill="#333"  opacity="0.2">
+                    <rect x="16" y="10" width="4" height="10" fill="#113e21"  opacity="0.2">
                     <animate attributeName="opacity" attributeType="XML" values="0.2; 1; .2" begin="0.3s" dur="0.6s" repeatCount="indefinite" />
                     <animate attributeName="height" attributeType="XML" values="10; 20; 10" begin="0.3s" dur="0.6s" repeatCount="indefinite" />
                     <animate attributeName="y" attributeType="XML" values="10; 5; 10" begin="0.3s" dur="0.6s" repeatCount="indefinite" />
@@ -316,7 +328,13 @@
             selectAllButton.textContent = allSelected ? 'Select all' : 'Deselect all';
 
             if (isArtist) {
-                toggleActiveContainer(container);
+                if (e.parentElement) {
+                    toggleActiveContainer(container);
+                } else {
+                    document
+                        .querySelectorAll('.artistAlbum')
+                        .forEach(container => toggleActiveContainer(container));
+                }
             }
 
             if (!isSingle) {
@@ -367,7 +385,7 @@
             artistContainer.id = "content";
             artistContainer.appendChild(coverContainer);
 
-            const nodeList = container.childNodes
+            const nodeList = container.childNodes;
 
             // Convert NodeList to an array
             const nodeArray = Array.from(nodeList);
@@ -403,7 +421,7 @@
             // create toggle all button
             const toggleButton = document.createElement('button');
             toggleButton.id = "selectAllButton";
-            toggleButton.type = "button"
+            toggleButton.type = "button";
             toggleButton.onclick = toggleSelectAll;
             toggleButton.innerText = "Deselect all";
 
@@ -429,6 +447,17 @@
                 text = '{{ data["name"] }}';
             }
 
+            // create delete saved tracks button
+            if (isSavedTracks) {
+                // create remove tracks button
+                const removeTracksButton = document.createElement("button");
+                removeTracksButton.type = "button"
+                removeTracksButton.innerText = "Remove tracks from library";
+                removeTracksButton.onclick = removeSavedTracks;
+
+                // render button
+                playlistForm.appendChild(removeTracksButton);
+            }
 
             downloadTitle.innerText = text;
 
@@ -448,6 +477,35 @@
             // get container to insert elements
             const container = document.getElementById('content');
             container.appendChild(playlistContainer);
+        }
+
+        function removeSavedTracks () {
+            // get form
+            const form = document.querySelector('form');
+
+            // get list of checked items
+            const checkedItems = Array.from(form.querySelectorAll('input[type="checkbox"]:checked'));
+
+            // get selected item's ids
+            const tracks = checkedItems.map(el => [el.id, el.dataset.id]);
+
+            const postData = {
+                method: 'POST',
+                body: JSON.stringify({ tracks }),
+                headers: { 'Content-Type': 'application/json' },
+            };
+
+            // Sending a post request to '/user_playlist/remove' with selected_songs as form data
+            fetch("/user_playlist/delete", postData)
+                .then(response => response.text())
+                .then(data => {
+                    // display response
+                    const container = document.querySelector("dialog");
+                    container.setAttribute("open", true);
+
+                    const responseContainer = document.getElementById("removedResponse");
+                    responseContainer.innerHTML = data;
+                });
         }
     </script>
 
