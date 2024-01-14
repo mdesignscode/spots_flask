@@ -163,7 +163,8 @@
                     return;
                 }
             } else if (selectedAction === "download") {
-                if (!userInput.includes("spotify") || !userInput.includes("youtu")) {
+                if (!userInput.includes("spotify") && !userInput.includes("youtu")) {
+                    console.log(userInput)
                     formatText.style.display = "block";
                     formatText.innerText = "Please use a Spotify or YouTube url";
                     return;

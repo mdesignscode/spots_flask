@@ -9,6 +9,7 @@ from mutagen.mp3 import MP3, HeaderNotFoundError
 
 original_songs = {}
 
+i = 0
 
 def process_song(file_path):
     """Removes a song if it is a duplicate"""
@@ -32,7 +33,10 @@ def process_directory(directory):
     """Process all MP3 files in a directory"""
     contents = listdir(directory)
     contents.sort(reverse=True)
+
     for item in contents:
+        print(f"[{globals()['i']}] Scanning: {item}")
+        globals()["i"] += 1
         item_path = path.join(directory, item)
         if path.isdir(item_path):
             process_directory(item_path)  # Recursively process subdirectories
