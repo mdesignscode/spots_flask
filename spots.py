@@ -33,4 +33,4 @@ if __name__ == "__main__":
 
     info(f"Serving Spots on port {port}")
 
-    app.run(port=int(port))
+    app.run(port=int(port), debug=True)

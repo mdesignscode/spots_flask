@@ -32,17 +32,13 @@
                 <label>
                     <input required type="radio" name="action" value="artist"> Artist
                 </label>
-            </div>
 
-            {% if username %}
-            <div>
+                {% if username %}
                 <label>
                     <input required type="radio" name="action" value="saved_tracks"> {{ username }} Saved Tracks
                 </label>
+                {% endif %}
             </div>
-            {% endif %}
-
-            <br>
 
             <!-- Input field -->
             <input placeholder="Select action above..." type="text" id="userInput" name="user_input" required>
@@ -54,8 +50,6 @@
                 </label>
                 <p style="display: none; color: brown; font-size: 1.3rem;" id="format"></p>
             </div>
-
-            <br>
 
             <!-- Submit button -->
             <input type="submit" value="Submit">
@@ -82,7 +76,7 @@
 
             if (!form) return;
 
-            // Get the clicked radio button using
+            // Get the clicked radio button
             const clickedRadioButton = form
                 .querySelector('input[name="action"]:checked');
 
@@ -90,9 +84,9 @@
                 if (text) {
                     input.removeAttribute("disabled");
                     input.setAttribute("placeholder", text);
-                    input.style.display = "block"
+                    input.style.display = "block";
                 } else {
-                    input.style.display = "none"
+                    input.style.display = "none";
                 }
             }
 
@@ -100,6 +94,8 @@
                 const checkbox = document.getElementById("singleOnly");
 
                 checkbox.style.display = active ? "flex" : "none";
+
+                feedback.style.display = active ? "flex" : "none"
             }
 
             const formatText = document.getElementById("format");
@@ -126,7 +122,7 @@
                     case "saved_tracks":
                         updatePlaceholder();
                         singleCheckbox();
-                        input.removeAttribute("required")
+                        input.removeAttribute("required");
                         formatText.style.display = "none";
                         break;
 
@@ -137,7 +133,6 @@
                 input.setAttribute("placeholder", "Select action above...");
                 input.setAttribute("disabled", "");
             }
-
         }
 
         function handleSubmit (e) {
@@ -164,7 +159,7 @@
                 }
             } else if (selectedAction === "download") {
                 if (!userInput.includes("spotify") && !userInput.includes("youtu")) {
-                    console.log(userInput)
+                    console.log(userInput);
                     formatText.style.display = "block";
                     formatText.innerText = "Please use a Spotify or YouTube url";
                     return;
@@ -212,7 +207,7 @@
                 formData.single = "true";
 
             if ("{{ username }}" && selectedAction === "saved_tracks")
-                formData.username = "{{ username }}"
+                formData.username = "{{ username }}";
 
             // Sending a POST request to '/handle_query' with JSON data
             fetch('/handle_query', {
