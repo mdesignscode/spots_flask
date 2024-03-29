@@ -364,15 +364,28 @@ class SpotifyWorker:
 
         Args:
             artist (str): The name of the artist."""
-        # search for the artist
-        result = self.spotify.search(artist, 1, type="artist")
+        artist_url = "https://open.spotify.com/artist/"
+        artist_id = ""
+
+        # get artist by id
+        if (artist_url in artist):
+            artist_id = artist.replace(artist_url, "").split("?")[0]
+            result = self.spotify.__getattribute__("artist")(artist_id)
+
+        else:
+            # search for the artist
+            result = self.spotify.search(artist, 1, type="artist")
 
         if not result:
             return
 
-        data = cast(Dict[str, Any], result)
-        artist_items: Dict[str, Any] = data["artists"]["items"][0]
-        artist_id = artist_items["id"]
+        # get artist items
+        if not artist_url in artist:
+            data = cast(Dict[str, Any], result)
+            artist_items: Dict[str, Any] = data["artists"]["items"][0]
+            artist_id = artist_items["id"]
+        else:
+            artist_items = result
 
         # get top tracks
         top_tracks_search = self.spotify.artist_top_tracks(artist_id)
