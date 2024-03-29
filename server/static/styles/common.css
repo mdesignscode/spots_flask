@@ -8,7 +8,7 @@ input {
 }
 
 input[type="submit"],
-button {
+button:not(#scroll) {
     background-color: #113e21;
     border-style: none;
     border-radius: 10px;
@@ -30,4 +30,6 @@ button {
 
 .loader svg {
     fill: #113e21;
+    width: 100px;
+    height: 100px;
 }

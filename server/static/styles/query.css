@@ -1,7 +1,7 @@
 html,
 body,
-#container{
-  height: 100%;
+#container {
+  height: 100dvh;
 }
 
 h2 {
@@ -18,11 +18,23 @@ h2 {
   align-items: center;
 }
 
-a {
+a,
+#scroll {
   position: fixed;
+  filter: drop-shadow(1px 2px 4px #000);
+}
+
+a {
   top: 5%;
   left: 5%;
-  filter: drop-shadow(3px 4px 4px #000);
+}
+
+#scroll {
+  top: 15%;
+  left: 4%;
+  display: grid;
+  border-radius: 50%;
+  border: none;
 }
 
 audio {
