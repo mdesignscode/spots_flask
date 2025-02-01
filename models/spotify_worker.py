@@ -9,6 +9,7 @@ from logging import info, basicConfig, error, ERROR, INFO
 from lyricsgenius import Genius
 from models.errors import InvalidURL, SongNotFound
 from models.metadata import Metadata
+from models.retrieve_spotify_playlist import retrieve_spotify_playlist as scrape_playlist
 from os import environ, getenv
 from re import search
 from requests.exceptions import ReadTimeout
@@ -29,7 +30,8 @@ class SpotifyWorker:
     """
 
     # create a Spotify API client
-    spotify = Spotify(auth_manager=SpotifyClientCredentials())
+    auth_manager = SpotifyClientCredentials()
+    spotify = Spotify(auth_manager=auth_manager)
 
     # create genius api for lyrics
     genius = Genius(getenv("lyricsgenius_key"))
@@ -42,6 +44,7 @@ class SpotifyWorker:
         """
         self.track_url: str = track_url
 
+    @retry(stop=stop_after_delay(max_delay=60))
     def get_user(self) -> str | None:
         """Retrieves the current user
 
@@ -52,7 +55,16 @@ class SpotifyWorker:
         Returns:
             str: The user's display name
         """
-        user = self.spotify.current_user()
+        if not getenv("username"):
+            return
+
+        user = None
+
+        try:
+            user = self.spotify.current_user()
+        except SpotifyException:
+            self.signin()
+            user = self.spotify.current_user()
 
         if user:
             return user["display_name"]
@@ -76,7 +88,7 @@ class SpotifyWorker:
         basicConfig(level=INFO)
         info("Searching for metadata on Spotify...")
         url = "https://open.spotify.com/track/" + track_id
-        cache: Metadata | None = storage.get(url, "spotify")
+        cache = storage.get(url, "spotify")
         if cache:
             info(f"Cached result: {cache.artist} - {cache.title}")
             return cache
@@ -102,7 +114,8 @@ class SpotifyWorker:
             try:
                 release_date_str = album["release_date"]
                 release_date_obj = datetime.strptime(release_date_str, "%Y-%m-%d")
-                release_date = release_date_obj.strftime("%Y")
+                # release_date = release_date_obj.strftime("%Y")
+                release_date = release_date_obj.strftime("%Y-%m-%d")
             except ValueError:
                 release_date = None
 
@@ -122,12 +135,15 @@ class SpotifyWorker:
             album_name = album["name"]
 
             # get track lyrics
-            song = self.genius.search_song(track_name, artist)
+            try:
+                song = self.genius.search_song(track_name, artist)
 
-            if not song or "Verse" not in song.lyrics or track_name not in song.title:
+                if not song or "Verse" not in song.lyrics or track_name not in song.title:
+                    lyrics = ""
+                else:
+                    lyrics = song.lyrics
+            except Exception:
                 lyrics = ""
-            else:
-                lyrics = song.lyrics
 
             preview_url = track["preview_url"] or ""
 
@@ -154,12 +170,12 @@ class SpotifyWorker:
             raise InvalidURL(self.track_url)
 
     @retry(stop=stop_after_delay(60))
-    def process_url(self, single: str | None = None):
+    def process_url(self, single: bool = True):
         """
         Processes a Spotify URL and returns metadata information.
 
         Args:
-            single: (str | None, optional): don't search for recommended tracks. Defaults to None
+            single: (boolean, optional): don't search for recommended tracks. Defaults to False
 
         Returns:
             Union[Tuple[List[Metadata], Dict[str, Unknown]], Metadata, None]:
@@ -181,7 +197,7 @@ class SpotifyWorker:
             track_id = self.track_url.split("/")[-1].split("?")[0]
 
             if resource_type == "playlist":
-                print("Processing Spotify Playlist...")
+                info("Processing Spotify Playlist...")
 
                 # get spotify playlist
                 get_playlist = self.spotify.__getattribute__(resource_type)
@@ -207,7 +223,7 @@ class SpotifyWorker:
                 return track_list, album_data
 
             elif resource_type == "album":
-                print("Processing Album...")
+                info("Processing Album...")
 
                 # get spotify album
                 get_album = self.spotify.__getattribute__(resource_type)
@@ -230,19 +246,19 @@ class SpotifyWorker:
                     try:
                         track_list.append(self.get_track(track["id"]))
                     except Exception as e:
-                        error(e)
+                        error(f"Error occurred while processing playlist: {e}")
 
                 return track_list, album_data
 
             elif resource_type == "track":
-                print("Processing Single...")
+                info("Processing Single...")
                 try:
                     return (
                         self.get_track(track_id),
                         self.get_recommended_tracks(track_id) if not single else None,
                     )
                 except Exception as e:
-                    error(e)
+                    error(f"Error occurred while processing single: {e}")
 
             else:
                 error(f"Invalid url: {self.track_url}")
@@ -254,8 +270,8 @@ class SpotifyWorker:
             return track_list, playlist_data
 
     @retry(stop=stop_after_delay(30))
-    async def search_track(
-        self, query: str, single: str | None = None
+    def search_track(
+        self, query: str, single: bool = False
     ) -> Tuple[Metadata, List[Metadata] | None] | None:
         """Searches for a title on spotify
 
@@ -274,8 +290,9 @@ class SpotifyWorker:
 
         if "-" not in query:
             basicConfig(level=ERROR)
-            error("Search format: `Artist` - `Title`")
-            raise TypeError("Search format: `Artist` - `Title`")
+            error_txt = "Search format: `Artist` - `Title`"
+            error(error_txt)
+            raise TypeError(error_txt)
 
         # search for a single
         single_result = self.spotify.search(query)
@@ -328,6 +345,7 @@ class SpotifyWorker:
                 )
             except SongNotFound:
                 info(f"{query} not found")
+
                 return
 
         return single_data, self.get_recommended_tracks(id) if not single else None
@@ -342,8 +360,12 @@ class SpotifyWorker:
         Returns:
             List[Metadata] | None: A list of metadata for each song or None if no recommendations found
         """
+        info(f"Retrieving recommended tracks for id: {id}")
         # get related songs
-        results = self.spotify.recommendations(seed_tracks=[id])
+        try:
+            results = self.spotify.recommendations(seed_tracks=[id])
+        except Exception:
+            return
 
         if not results:
             return
@@ -358,12 +380,14 @@ class SpotifyWorker:
         return recommended_tracks
 
     @retry(stop=stop_after_delay(60))
-    def artist_albums(self, artist: str):
+    def artist_albums(self, artist: str, essentials_playlist: str | None = None):
         """
         Retrieves the albums of a given artist.
 
         Args:
-            artist (str): The name of the artist."""
+            artist (str): The name of the artist. Can be either then name of artist or spotify url to artist
+            essentials_playlist (str | None, optional): A spotify playlist to scrape. Defaults to None.
+        """
         artist_url = "https://open.spotify.com/artist/"
         artist_id = ""
 
@@ -379,6 +403,9 @@ class SpotifyWorker:
         if not result:
             return
 
+        artist_name = result["name"]
+        info(f"Searching for albums by {artist_name}")
+
         # get artist items
         if not artist_url in artist:
             data = cast(Dict[str, Any], result)
@@ -387,7 +414,10 @@ class SpotifyWorker:
         else:
             artist_items = result
 
+        artist_cover = artist_items["images"][0]["url"]
+
         # get top tracks
+        info("Searching for top tracks")
         top_tracks_search = self.spotify.artist_top_tracks(artist_id)
         top_tracks_playlist = []
         if top_tracks_search:
@@ -398,7 +428,7 @@ class SpotifyWorker:
             ]
 
         top_tracks_playlist_data = {
-            "cover": "/static/single-cover.jpg",
+            "cover": artist_cover,
             "name": "Top Tracks",
             "artist": None,
         }
@@ -410,11 +440,14 @@ class SpotifyWorker:
         # filter albums for the specified artist
         artist_albums = list(
             filter(
-                lambda item: item["artists"][0]["name"].lower() == artist.lower(),
+                lambda item: any(
+                    artist_obj["name"].lower() == artist.lower() for artist_obj in item["artists"]
+                ),
                 data["items"],
             )
         )
 
+        artist_albums = data["items"]
         albums = []
 
         for item in artist_albums:
@@ -424,6 +457,21 @@ class SpotifyWorker:
             albums.append(self.process_url())
 
         albums.append((top_tracks_playlist, top_tracks_playlist_data))
+
+        if essentials_playlist:
+            # get artist's This Is playlist
+            scraped_ids, scraped_cover, scraped_title = scrape_playlist(essentials_playlist)
+            scraped_playlist = [self.get_track(id) for id in scraped_ids]
+
+            essential_cover = scraped_cover if scraped_cover else '/static/single-cover.jpg'
+            essential_title = scraped_title if scraped_title else f'This is {artist_name}'
+            scraped_data = {
+                    'cover': essential_cover,
+                    'name': essential_title,
+                    'artist': artist_name
+            }
+
+            albums.append((scraped_playlist, scraped_data))
 
         return albums, {
             "cover": artist_items["images"][0]["url"],
@@ -439,7 +487,13 @@ class SpotifyWorker:
         """
         info("Searching for user saved tracks...")
         limit = 50
-        user_tracks = self.spotify.current_user_saved_tracks(limit=limit)
+        user_tracks = None
+
+        try:
+            user_tracks = self.spotify.current_user_saved_tracks(limit=limit)
+        except SpotifyException:
+            self.signin()
+            user_tracks = self.spotify.current_user_saved_tracks(limit=limit)
 
         if user_tracks:
             total_tracks = user_tracks["total"]
@@ -488,7 +542,7 @@ class SpotifyWorker:
         else:
             raise Exception("Can't get token for", username)
 
-    @retry(stop=stop_after_delay(60))
+    @retry(stop=stop_after_delay(30))
     def modify_saved_tracks_playlist(self, action: str, tracks: str):
         environ["scope"] = "user-library-modify"
         self.signin()
@@ -499,3 +553,4 @@ class SpotifyWorker:
             self.spotify.current_user_saved_tracks_delete([tracks])
         else:
             raise TypeError("`delete` or `add` actions only")
+
