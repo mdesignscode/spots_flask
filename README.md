@@ -32,26 +32,6 @@
     <img src="./server/static/tech_stack/flask-svgrepo-com.svg" alt="Flask icon" width="80" height="80">
     <p>Flask</p>
   </a>
-
-  <a style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; cursor: pointer;" href="https://jinja.palletsprojects.com/en/3.1.x/" class="stack_item">
-    <img src="./server/static/tech_stack/jinja-svgrepo-com.svg" alt="Jinja icon" width="80" height="80">
-    <p>Jinja</p>
-  </a>
-
-  <a style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; cursor: pointer;" href="https://developer.mozilla.org/en-US/docs/Web/javascript" class="stack_item">
-    <img src="./server/static/tech_stack/javascript-svgrepo-com.svg" alt="Javascript icon" width="80" height="80">
-    <p>Javascript</p>
-  </a>
-
-  <a href="https://developer.mozilla.org/en-US/docs/Web/CSS" class="stack_item">
-    <img src="./server/static/tech_stack/css-3-svgrepo-com.svg" alt="CSS3 icon" width="80" height="80">
-    <p>CSS3</p>
-  </a>
-
-  <a style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; cursor: pointer;" href="https://developer.mozilla.org/en-US/docs/Learn/Getting_started_with_the_web/HTML_basics" class="stack_item">
-    <img src="./server/static/tech_stack/html-5-svgrepo-com.svg" alt="HTML5 icon" width="80" height="80">
-    <p>HTML5</p>
-  </a>
 </div>
 
 <br/>
@@ -73,11 +53,6 @@
   <p style="margin-left: 1rem;">Download entire Spotify playlists, albums, or YouTube playlists to curate your perfect collection.</p>
 </div>
 
-<div>
-  <h3>Sleek & Responsive:</h3>
-  <p style="margin-left: 1rem;">Immerse yourself in a visually stunning and responsive design, ensuring a seamless and enjoyable user experience.</p>
-</div>
-
 <br/>
 
 <h2 style="text-align: center; color: #4CAF50;">Requirements</h2>
@@ -87,6 +62,8 @@
 <strong>A text editor (Notepad, Visual Studio Code, Atom, etc)</strong>
 <br/>
 <strong>A command line interface (Bash, Powershell, etc)</strong>
+<br/>
+<strong>A Spotify <a href="https://developer.spotify.com/dashboard">API key</a>.</strong>
 
 <br/>
 
@@ -137,13 +114,13 @@ python3 -m venv spots_venv
 <p>On Windows</p>
 
 ```powershell
-venv\Scripts\activate
+spots_venv\Scripts\activate
 ```
 
 <p>On Linux/macOS</p>
 
 ```bash
-source venv/bin/activate
+source spots_venv/bin/activate
 ```
 
 <p>Your command prompt or terminal prompt should change to indicate that you are now in the virtual environment.</p>
@@ -183,3 +160,4 @@ python3 spots.py
 <h2 style="text-align: center; color: #4CAF50;">License</h2>
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
