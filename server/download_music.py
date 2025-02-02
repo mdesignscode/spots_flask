@@ -4,16 +4,17 @@
 from typing import Dict, cast
 from download_urls import playlist_downloader
 from engine import storage
-from flask import Blueprint, request, make_response
+from flask import Blueprint, request, make_response, jsonify
 from json import loads
 from models.spotify_worker import Metadata
 from models.youtube_to_spotify import ProcessYoutubeLink
 from os import chdir
+from tenacity import retry, stop_after_delay
 
 
 blueprint = Blueprint("download", __name__, url_prefix="/download")
 
-
+@retry(stop=stop_after_delay(max_delay=120))
 @blueprint.route("/single", methods=["POST"])
 def download_song():
     if request.method == "POST":
@@ -23,22 +24,29 @@ def download_song():
 
         try:
             # Access json data
-            raw_data = cast(Dict[str, str], request.json)
-            # load json data
-            json_data = loads(raw_data["metadata"])
-        except:
+            json_data = cast(Dict[str, str], request.json)
+        except Exception:
             json_data = request.form
 
-        # create a metadata object
+        # Validate required fields
+        required_fields = [
+            "title", "artist", "link", "cover",
+            "tracknumber", "album", "lyrics", "release_date"
+        ]
+        missing_fields = [field for field in required_fields if field not in json_data]
+        if missing_fields:
+            return jsonify({"message": f"Missing fields: {', '.join(missing_fields)}"}), 400
+
+        # Create a metadata object
         metadata = Metadata(
-            json_data["title"],
-            json_data["artist"],
-            json_data["link"],
-            json_data["cover"],
-            json_data["tracknumber"],
-            json_data["album"],
-            json_data["lyrics"],
-            json_data["release_date"],
+            json_data.get("title"),
+            json_data.get("artist"),
+            json_data.get("link"),
+            json_data.get("cover"),
+            json_data.get("tracknumber"),
+            json_data.get("album"),
+            json_data.get("lyrics"),
+            json_data.get("release_date"),
         )
 
         youtube_url = metadata.link if "youtu" in metadata.link else ""
@@ -47,19 +55,16 @@ def download_song():
 
         try:
             youtube.download_title()
-
             storage.save()
-
             chdir(root_dir)
-
-            return f"<p>Successfully downloaded <strong>{metadata.artist} - {metadata.title}</strong></p>"
+            return jsonify({"message": "Successfully downloaded"}), 200
         except Exception as e:
-            return f"Failed to download: {e}"
-
+            return jsonify({"message": f"Download failed: {str(e)}"}), 500
     else:
-        return "Only POST method allowed"
+        return jsonify({"message": "Only POST method allowed"}), 405
 
 
+# @retry(stop=stop_after_delay(max_delay=120))
 @blueprint.route("/artist", methods=["POST"])
 @blueprint.route("/playlist", methods=["POST"])
 def download_playlist():
@@ -73,7 +78,7 @@ def download_playlist():
     json_data = json_dict["selected_songs"]
     playlist_name = json_dict["playlist_name"]
 
-    selected_songs = [Metadata(**loads(song)) for song in json_data]
+    selected_songs = [Metadata(**song) for song in json_data]
 
     exceptions = playlist_downloader(selected_songs, playlist_name, bool(query))
 
@@ -81,15 +86,5 @@ def download_playlist():
 
     chdir(root_dir)
 
-    if len(exceptions):
-        exceptions_response = "\n".join(
-            [f"<p>{exception}</p>" for exception in exceptions]
-        )
-        response = f"""<div id='response'>
-            <h2>The download process finished with the following results:</h2>
-            {exceptions_response}
-        </div>"""
-        return make_response(response, 201)
-    else:
-        response = make_response(f"Successfully downloaded {playlist_name}", 201)
-        return response
+    return jsonify({ "message": exceptions if len(exceptions) else [f"Successfully downloaded {playlist_name}"] })
+
