@@ -1,31 +1,38 @@
 #!/usr/bin/python3
 """Spots Web App"""
 
-from json import loads
-from download_urls import convert_url, search_on_youtube
+from download_urls import convert_url, search_on_youtube, search_artist_on_yt
 from engine import storage
-from flask import Flask, render_template, request, url_for
+from flask import Flask, request, url_for, jsonify
+from flask_cors import CORS
+from logging import error, info
 from models import spotify_model
+from models.errors import SongNotFound
 from models.metadata import Metadata
 from models.spotify_worker import SpotifyWorker
 from models.youtube_to_spotify import ProcessYoutubeLink
 from os import chdir, getcwd, getenv, makedirs, chdir
 from os.path import join, exists, basename
+from requests.exceptions import ConnectionError
 from server.download_music import blueprint
 from typing import Dict, List, Tuple, cast
+from tenacity import retry, stop_after_delay, RetryError
+from urllib3.exceptions import NameResolutionError
 
 
 app = Flask(__name__, static_url_path="/static")
 app.register_blueprint(blueprint)
+CORS(app)
 
-
-@app.route("/")
+@retry(stop=stop_after_delay(max_delay=60))
+@app.route("/get-user")
 def home():
     username = spotify_model.get_user()
 
-    return render_template("index.html", username=username)
+    return jsonify({ "username": username })
 
 
+@retry(stop=stop_after_delay(max_delay=120))
 @app.route("/user_playlist/<action>", methods=["POST"])
 def user_playlist(action: str):
     if request.method != "POST":
@@ -47,180 +54,185 @@ def user_playlist(action: str):
     return "No songs removed" if not query else response
 
 
+# @retry(stop=stop_after_delay(max_delay=60))
 @app.route("/query/<action>")
-async def query(action: str):
+def query(action: str):
     root_dir = chdir_to_music()
     query = request.args.get("q")
-    single = request.args.get("single")
+    essentials_playlist = request.args.get("essentials_playlist")
+    single_arg = request.args.get("single")
+    single = single_arg == "true"
     username = request.args.get("username")
 
     if not query:
         if not username:
-            return """<h2>Search Query Missing</h2>
-                <a href='/'>Back to home</a>"""
+            return jsonify({ "message": "Search Query Missing" })
         else:
             query = ""
 
-    # search for a title on spotify
-    match action:
-        case "search":
-            try:
-                result = await spotify_model.search_track(query, single)
-            except Exception as e:
-                return str(e)
+    info(f"Performing {action} on {query}...")
 
-            if not result:
-                return f"No results for {query}"
+    # catch network error
+    try:
+        # validate token
+        spotify_model.get_user()
 
-            metadata = result[0]
+        # search for a title on spotify
+        match action:
+            case "search":
+                try:
+                    result = spotify_model.search_track(query, single)
+                    info(f"Spotify search: {result[0].title} by {result[0].artist}")
 
-            # search for title on youtube
-            youtube = ProcessYoutubeLink(metadata=metadata, search_title=query)
-            youtube_result = youtube.get_title()
-            youtube_title = f"{youtube_result[0]} - {youtube_result[1]}"
+                except (SongNotFound, TypeError) as e:
+                    return jsonify({ "message": str(e) })
 
-            # search for recommended tracks on youtube
-            recommended_tracks = []
-            if result[1]:
-                recommended_tracks = search_on_youtube(result[1])
+                except Exception as e:
+                    # catch edge case for future handling
+                    error(f"Spotify search error: {e}")
+                    raise e
 
-            chdir(root_dir)
+                if not result:
+                    return jsonify({ "message": f"No results for {query}" })
 
-            return render_template(
-                "query.html",
-                data=metadata.__dict__,
-                size=youtube_result[2],
-                resource="single",
-                title=youtube_title,
-                action=action,
-                recommended_tracks=recommended_tracks,
-            )
+                metadata = result[0]
 
-        case "download":
-            # process the url
-            converter = await convert_url(query, single)
+                # search for title on youtube
+                youtube = ProcessYoutubeLink(metadata=metadata, search_title=query)
+                youtube_result = youtube.get_title()
+                youtube_title = f"{youtube_result[0]} - {youtube_result[1]}"
 
-            if not converter:
-                return f"<h2>No results for {query}</h2>"
+                # search for recommended tracks on youtube
+                recommended_tracks = []
+                if result[1]:
+                    recommended_tracks = search_on_youtube(result[1])
 
-            match converter[0]:
-                # handle single
-                case "single":
-                    results = cast(
-                        Tuple[Metadata, List[Metadata] | None, int], converter[2]
-                    )
+                chdir(root_dir)
 
-                    # search for recommended tracks on youtube
-                    recommended_tracks = []
-                    if results[1]:
-                        recommended_tracks = search_on_youtube(results[1])
+                return jsonify({
+                    "data": metadata.__dict__,
+                    "size": youtube_result[2],
+                    "resource": "single",
+                    "title": youtube_title,
+                    "action": action,
+                    "recommended_tracks": recommended_tracks,
+                })
 
-                    return render_template(
-                        "query.html",
-                        data=results[0].__dict__,
-                        resource="single",
-                        title=converter[1],
-                        action=action,
-                        recommended_tracks=recommended_tracks,
-                        size=results[2],
-                    )
+            case "download":
+                # process the url
+                converter = convert_url(query, single)
 
-                # handle playlist
-                case "playlist":
-                    return render_template(
-                        "query.html",
-                        playlist=converter[1],
-                        data=converter[2],
-                        resource="playlist",
-                        title=converter[1],
-                        action=action,
-                    )
+                if not converter:
+                    return f"<h2>No results for {query}</h2>"
 
-        case "artist":
-            result = spotify_model.artist_albums(query)
+                match converter[0]:
+                    # handle single
+                    case "single":
+                        # handle single only
+                        metadata = cast(Metadata, converter[2])
 
-            if not result:
-                return f"No results for {query}"
+                        # search for recommended tracks on youtube
+                        recommended_tracks = []
+                        #if not single:
+                        #    recommended_tracks = search_on_youtube(results[1])
 
-            albums = []
-            # record to avoid duplicates
-            table = {}
+                        return jsonify({
+                            "data": metadata.__dict__,
+                            "resource": "single",
+                            "title": converter[1],
+                            "action": action,
+                            "recommended_tracks": recommended_tracks,
+                            "size": converter[3],
+                        })
 
-            for album in result[0]:
-                playlist = []
-                yt_list = search_on_youtube(album[0])
-                for yt_result in yt_list:
-                    yt_title = yt_result[0]
+                    # handle playlist
+                    case "playlist":
+                        return jsonify({
+                            "playlist": converter[1],
+                            "data": converter[2],
+                            "resource": "playlist",
+                            "title": converter[1],
+                            "action": action,
+                        })
 
-                    # see if song has been recorded
-                    in_table = table.get(yt_title)
+            case "artist":
+                result = spotify_model.artist_albums(query, essentials_playlist)
 
-                    if not in_table:
-                        table[yt_title] = True
+                if not result:
+                    return jsonify({ "message": f"No results for {query}" }), 500
 
-                        playlist.append(yt_result)
+                artist_name = result[1]["name"]
+                artist_cover = result[1]["cover"]
 
-                albums.append({"album": album[1], "playlist": playlist})
+                albums = []
 
-            # filter out albums with no songs
-            albums = list(filter(lambda x: len(x["playlist"]), albums))
+                # search for artist on YT
+                yt_playlist = search_artist_on_yt(artist_name, artist_cover)
 
-            return render_template(
-                "query.html",
-                data=result[1],
-                resource="artist",
-                albums=albums,
-                action=action,
-            )
+                # record to avoid duplicates
+                table = {}
 
-        case "saved_tracks":
-            saved_tracks = spotify_model.user_saved_tracks()
-            storage.save()
+                # combine scraped playlist and youtube search
+                scraped_playlist = result[0][-1]
+                artist_playlist = scraped_playlist[0] + yt_playlist
+                artist_playlist_details = scraped_playlist[1]
 
-            if saved_tracks:
-                cover = url_for("static", filename="avatar.jpg")
-                data = {"cover": cover, "name": username}
+                # add combined playlist to albums list
+                all_albums = result[0][:-1]
+                all_albums.append((artist_playlist, artist_playlist_details))
 
-                return render_template(
-                    "query.html",
-                    data=data,
-                    resource="saved_tracks",
-                    playlist=search_on_youtube(saved_tracks),
-                    action=action,
-                )
+                for album in all_albums:
+                    playlist = []
+                    spotify_playlist = album[0]
+                    yt_list = search_on_youtube(spotify_playlist)
+                    for yt_result in yt_list:
+                        yt_title = yt_result[0]
 
-            else:
-                return "No saved tracks found"
+                        # see if song has been recorded
+                        in_table = table.get(yt_title)
 
-        case _:
-            return """<h2>Only `Download` `Artist, or `Search` actions allowed</p>
-                <a href='/'>Back to home</a>"""
+                        if not in_table:
+                            table[yt_title] = True
 
+                            playlist.append(yt_result)
 
-@app.route("/handle_query", methods=["POST"])
-def handle_query():
-    if request.method == "POST":
-        # Access form data
-        json_dict = cast(Dict[str, str], request.json)
-        action = json_dict["action"]
-        user_input = json_dict["user_input"]
-        single = json_dict.get("single")
-        username = json_dict.get("username")
+                    albums.append({"album": album[1], "playlist": playlist})
 
-        # Construct the redirect URL
-        redirect_url = url_for("query", action=action, q=user_input)
+                # filter out albums with no songs
+                albums = list(filter(lambda x: len(x["playlist"]), albums))
 
-        if single:
-            redirect_url += "&single=true"
+                return jsonify({
+                    "data": result[1],
+                    "resource": "artist",
+                    "albums": albums,
+                    "action": action,
+                })
 
-        if username:
-            redirect_url += f"&username={username}"
+            case "saved_tracks":
+                saved_tracks = spotify_model.user_saved_tracks()
+                storage.save()
 
-        # Return a redirect response
-        return redirect_url
+                if saved_tracks:
+                    cover = url_for("static", filename="avatar.jpg")
+                    data = {"cover": cover, "name": username}
 
-    else:
-        return "Only POST method allowed"
+                    return jsonify({
+                        "data": data,
+                        "resource": "saved_tracks",
+                        "playlist": search_on_youtube(saved_tracks),
+                        "action": action,
+                    })
+
+                else:
+                    return jsonify({ "error": "No saved tracks found" }), 500
+
+            case _:
+                return jsonify({
+                    "error": "Only `Download` `Artist, or `Search` actions allowed"
+                }), 400
+    except (RetryError, ConnectionError, NameResolutionError) as e:
+        storage.save()
+        return jsonify({ "error": str(e) }), 500
 
 
 def chdir_to_music() -> str:
@@ -238,3 +250,4 @@ def chdir_to_music() -> str:
         chdir(music_folder)
 
     return current_dir
+

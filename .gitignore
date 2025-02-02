@@ -6,3 +6,4 @@ spots_venv
 __pycache__
 tests/test_download_urls.py
 q.txt
+cookies.txt

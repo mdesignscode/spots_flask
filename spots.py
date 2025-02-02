@@ -24,7 +24,8 @@ if __name__ == "__main__":
     storage.reload()
 
     # sign user in
-    spotify_model.signin()
+    if getenv("username"):
+        spotify_model.signin()
 
     # change back to root path
     chdir(root_dir)
