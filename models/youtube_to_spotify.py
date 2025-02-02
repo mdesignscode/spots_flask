@@ -2,16 +2,17 @@
 """A class that searches for a track from youtube on spotify"""
 
 from __future__ import unicode_literals
+from engine import storage
 from html import unescape
-from logging import basicConfig, error, ERROR
+from logging import basicConfig, error, ERROR, info, INFO
 from typing import cast
 from flask import url_for
-from models.errors import InvalidURL, TitleExistsError
+from models.errors import InvalidURL, SongNotFound, TitleExistsError
 from models.spotify_worker import SpotifyWorker, Metadata
-from os import getenv
 from models.spotify_to_youtube import ProcessSpotifyLink
-from pytube import YouTube
-from re import search
+from re import search, compile, escape
+from tenacity import retry, stop_after_delay
+from yt_dlp import YoutubeDL
 
 
 class ProcessYoutubeLink(SpotifyWorker, ProcessSpotifyLink):
@@ -40,35 +41,44 @@ class ProcessYoutubeLink(SpotifyWorker, ProcessSpotifyLink):
 
         if youtube_url:
             self.youtube_url = youtube_url
-            self.youtube = YouTube(
-                self.youtube_url, use_oauth=bool(getenv("use_oauth"))
-            )
             return
 
-        elif metadata:
+        if metadata:
             ProcessSpotifyLink.__init__(self, metadata)
             return
 
-    async def process_youtube_url(self) -> Metadata | None:
+    def process_youtube_url(self, single_only: bool = False, default_cover: str = "") -> Metadata | None:
         """Processes a youtube url and returns the metadata for video
+
+        Args:
+            single_only (boolean, optional): whether to retrieve the recommended tracks or not. Defaults to False
+            default_cover (str, optional): Fallback cover url.
 
         Returns:
             Metadata: the metadata of youtube song
         """
+        basicConfig(level=INFO)
+        info(f"Processing youtube url: {self.youtube_url}")
+
         try:
             artist, title, _ = self.get_title()
-        except InvalidURL:
-            return
+        except SongNotFound as e:
+            info(f"No results for: {self.youtube_url}")
+            raise e
+
+        info(f"Found: {title} by {artist}")
 
         # get cover from static folder
-        cover = url_for("static", filename="single-cover.jpg")
+        static_cover = f'http://localhost:5000{url_for("static", filename="single-cover.jpg")}'
+        cover = default_cover if default_cover else static_cover
 
         search_title = f"{artist} - {title}"
 
         # get metadata for youtube title
-        metadata = await self.search_track(search_title)
+        metadata = self.search_track(search_title, single_only)
 
         if not metadata:
+            info(f"No spotify results for {search_title}")
             return Metadata(title, artist, self.youtube_url, cover)
 
         metadata = metadata[0]
@@ -89,7 +99,9 @@ class ProcessYoutubeLink(SpotifyWorker, ProcessSpotifyLink):
             # initialize parent
             ProcessSpotifyLink.__init__(self, metadata, self.youtube_url)
             return metadata
+        return pattern.sub("", string)
 
+    @retry(stop=stop_after_delay(max_delay=120))
     def get_title(self) -> tuple[str, str, int]:
         """Retrieve artist and title on YouTube video object
 
@@ -99,16 +111,32 @@ class ProcessYoutubeLink(SpotifyWorker, ProcessSpotifyLink):
         Raises:
             InvalidURL: if invalid YouTube video url provided
         """
-        # check url availability
-        search_response = self.youtube
+        options = {
+            'format': 'bestaudio/best',
+            'quiet': True,
+            'cookiefile': 'cookies.txt',  # Path to your cookies file
+            'outtmpl': '%(title)s.%(ext)s',
+        }
+
+        with YoutubeDL(options) as ydl:
+            youtube = ydl
+
+        # check cache
+        cache = storage.get(self.youtube_url, "ytdl")
+        if cache:
+            info(f"Cached response: {cache['title']}")
+            search_response = cache
+
+        else:
+            search_response = youtube.extract_info(self.youtube_url, download=False)
+            storage.new(self.youtube_url, search_response, "ytdl")
+
         if not search_response:
             basicConfig(level=ERROR)
             error(f"{self.youtube_url} is not available")
-            raise InvalidURL(self.youtube_url)
+            raise SongNotFound(self.youtube_url)
 
-        search_response.check_availability()
-
-        result_title = search_response.title
+        result_title = search_response.get("title")
 
         # Decode the string
         try:
@@ -116,38 +144,31 @@ class ProcessYoutubeLink(SpotifyWorker, ProcessSpotifyLink):
         except TypeError:
             youtube_video_title = result_title
 
-        # remove unnecessary keywords from title
-        youtube_video_title = youtube_video_title.replace(" (Audio Visual)", "")
-        youtube_video_title = youtube_video_title.replace(" (Official Audio)", "")
-        youtube_video_title = youtube_video_title.replace(" (Official Video)", "")
-        youtube_video_title = youtube_video_title.replace(" (Audio)", "")
-        youtube_video_title = youtube_video_title.replace(" Uncut [HD]", "")
-        youtube_video_title = youtube_video_title.replace(" [Video]", "")
-        youtube_video_title = youtube_video_title.replace(" (HD)", "")
-        youtube_video_title = youtube_video_title.replace(" (Official Music Video)", "")
-        youtube_video_title = youtube_video_title.replace(" [Official Music Video]", "")
-        youtube_video_title = youtube_video_title.replace(" - Topic", "")
-        youtube_video_title = youtube_video_title.replace(" (Official Visualizer)", "")
-        youtube_video_title = youtube_video_title.replace(" (Complete)", "")
-        youtube_video_title = youtube_video_title.replace(" (Visualizer)", "")
+        youtube_video_title = self.remove_odd_keywords(youtube_video_title)
 
         # determine if original artist uploaded video
-        artist = (
-            search_response.author
-            if search_response.author
-            else youtube_video_title.split("-")[0]
-        )
+        split_title = youtube_video_title.split("-")
+        artist = split_title[0].strip() if len(split_title) > 1 else search_response["uploader"]
 
         title = (
-            youtube_video_title.split("-")[1]
+            split_title[1]
             if "-" in youtube_video_title
             else youtube_video_title
         )
 
-        file_size = cast(int, self.download_youtube_video(get_size=True))
+        # check if ProcessSpotifyLink is initialized
+        try:
+            file_size = cast(int, self.download_youtube_video(get_size=True))
+        except AttributeError:
+            # caller doesn't need file size
+            file_size = 0
+        except Exception as e:
+            error(f"Error occured: {e}")
+            raise e
 
         return artist, title, file_size
 
     def download_title(self) -> None:
         # download video as audio
         self.download_youtube_video()
+
