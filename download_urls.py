@@ -1,7 +1,5 @@
-#!/usr/bin/python3
 """Contains functions that processes a Spotify or YouTube url"""
 
-from json import dumps
 from engine import storage
 from logging import ERROR, basicConfig, error, info, INFO
 from dotenv import load_dotenv
@@ -10,29 +8,35 @@ from models.spotify_worker import SpotifyWorker, Metadata
 from models.errors import InvalidURL, SongNotFound
 from models.spotify_to_youtube import ProcessSpotifyLink
 from models.youtube_to_spotify import ProcessYoutubeLink
-from os import getenv
-from pytube import Playlist, YouTube
-from typing import Any, Dict, List, Tuple, cast
+from re import search
+from typing import List, Tuple, cast
+from yt_dlp import YoutubeDL
+from yt_dlp.utils import DownloadError
+
 
 load_dotenv()
 
 
 @retry(stop=stop_after_delay(60))
-async def convert_url(url: str, single: str | None = None):
+def convert_url(url: str, single: bool = False):
     """Converts a youtube or spotify url to mp3, or a youtube video to mp3
 
     Args:
         url (str): url to be converted
-        single: (str | None, optional): don't search for recommended tracks. Defaults to None
+        single: (bool, optional): don't search for recommended tracks if false. Defaults to False
 
     Raises:
         InvalidURL: if provided url not available
     """
     # process spotify link
+    info("Process:: Converting url")
+
     if "spotify" in url:
+        info("URL type: Spotify")
         spotify = SpotifyWorker(url)
         # single
         if "track" in url:
+            info("Resource type: single")
             result = cast(Tuple[Metadata, List[Metadata]], spotify.process_url(single))
             metadata = result[0]
             youtube = ProcessYoutubeLink(metadata=metadata)
@@ -44,6 +48,7 @@ async def convert_url(url: str, single: str | None = None):
             )
         # playlist
         else:
+            info("Resource type: playlist")
             spotify_playlist, album_data = cast(
                 tuple[list[Metadata], dict[str, str]], spotify.process_url()
             )
@@ -55,11 +60,13 @@ async def convert_url(url: str, single: str | None = None):
 
     # process youtube link
     elif "youtu" in url:
+        info("URL type: YouTube")
         # download a youtube playlist
         if "playlist" in url:
+            info("Resource type: playlist")
             playlist_name, metadata_list = process_youtube_playlist(url)
 
-            cover = "/static/youtube-playlist.jpg"
+            cover = "http://localhost:5000/static/youtube-playlist.jpg"
 
             album_data = {
                 "cover": cover,
@@ -71,20 +78,23 @@ async def convert_url(url: str, single: str | None = None):
 
             return "playlist", playlist, album_data
         else:
+            info("Resource type: single")
             # check url availability
             try:
-                youtube = YouTube(url, use_oauth=bool(getenv("use_oauth")))
-                youtube.check_availability()
-            except:
+                yt_to_spotify = ProcessYoutubeLink(youtube_url=url)
+                metadata = yt_to_spotify.process_youtube_url(single)
+                artist, yt_title, file_size = yt_to_spotify.get_title()
+
+                query = f"{metadata.artist} - {metadata.title}"
+                result = (yt_title, metadata.__dict__, file_size)
+                storage.new(query, result, "youtube")
+                storage.save()
+
+                return "single", f"{artist} - {yt_title}", metadata, file_size
+            except DownloadError:
                 basicConfig(level=ERROR)
                 error(f"{url} is not available")
                 raise InvalidURL(url)
-
-            yt_to_spotify = ProcessYoutubeLink(youtube_url=url)
-            metadata = await yt_to_spotify.process_youtube_url()
-            artist, title, _ = yt_to_spotify.get_title()
-            return "single", f"{artist} - {title}", metadata
-
 
 @retry(stop=stop_after_delay(60))
 def playlist_downloader(
@@ -113,9 +123,10 @@ def playlist_downloader(
                 album_folder if not unique_path else f"{album_folder}/{track.album}"
             )
             spotify.download_youtube_video(folder)
+
         except Exception as e:
             basicConfig(level=ERROR)
-            error(e)
+            error(f"Error occurred during downnload: {e}")
             exceptions.append(str(e))
 
     return exceptions
@@ -131,10 +142,18 @@ def process_youtube_playlist(url: str) -> tuple[str, list[Metadata]]:
     Returns:
         tuple[str, list[Metadata]]: the playlist name and playlist items
     """
-    playlist = Playlist(url)
-    playlist_urls = playlist.video_urls
+    ydl_opts = {
+        'quiet': True,
+        'extract_flat': True,
+        'playlistend': None,  # Extract full playlist,
+        'cookiefile': 'cookies.txt'
+    }
 
-    playlist_name = playlist.title
+    with YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(url, download=False)
+
+    playlist_name = info.get('title', 'Unknown Playlist')
+    playlist_urls = [entry['url'] for entry in info.get('entries', []) if entry.get('url')]
 
     playlist = []
 
@@ -145,7 +164,6 @@ def process_youtube_playlist(url: str) -> tuple[str, list[Metadata]]:
         playlist.append(metadata)
 
     return playlist_name, playlist
-
 
 @retry(stop=stop_after_delay(60))
 def search_on_youtube(
@@ -171,22 +189,83 @@ def search_on_youtube(
                 info(f"Cached result: {cache[0]}")
                 playlist.append(cache)
             else:
-                youtube = ProcessYoutubeLink(metadata=metadata)
-                youtube_result = youtube.get_title()
-                yt_title = f"{youtube_result[0]} - {youtube_result[1]}"
+                try:
+                    youtube = ProcessYoutubeLink(metadata=metadata)
+                    youtube_result = youtube.get_title()
+                    file_size = youtube_result[2]
+                    yt_title = f"{youtube_result[0]} - {youtube_result[1]}"
 
-                result = (yt_title, metadata.__dict__, youtube_result[2])
+                    result = (yt_title, metadata.__dict__, file_size)
 
-                storage.new(query, result, "youtube")
-                playlist.append(result)
+                    storage.new(query, result, "youtube")
+                    playlist.append(result)
 
-                if index % 10:
-                    storage.save()
-        except SongNotFound:
-            pass
-        except InvalidURL:
-            pass
+                    if index % 10 or len(spotify_playlist) == 1:
+                        storage.save()
+                except SongNotFound:
+                    info(f"{metadata.artist} - {metadata.title} not found")
+                    continue
+        except Exception as e:
+            error(f"Error occurred during YouTube search: {e}")
+            raise Exception(e)
 
     storage.save()
 
     return playlist
+
+def search_artist_on_yt(artist: str, default_cover: str):
+    """
+    Search for for all videos by an artist name on youtube
+
+    Args:
+        artist (str): The name of the artist
+        default_cover (str): Fallback cover url
+
+    Returns:
+        List[Metadata]: A list of songs by `artist` found on YT
+    """
+    # check cache first
+    cached_artist = storage.get(artist, "artist")
+    if cached_artist:
+        return cached_artist
+
+    info(f"Searching for {artist}'s songs on YT")
+    options = {
+        'format': 'bestaudio/best',
+        'cookiefile': 'cookies.txt',  # Path to your cookies file
+        'outtmpl': '%(title)s.%(ext)s',
+        'noplaylist': True,
+        'cachedir': './yt_cache',
+    }
+
+    with YoutubeDL(options) as ydl:
+        video_record = {}
+        vid_info = ydl.extract_info(f"ytsearch50:{artist}", download=False)
+
+        if not vid_info:
+            raise SongNotFound(artist)
+
+        for index, entry in enumerate(vid_info['entries']):
+            title = entry.get('title')
+
+            if search(artist, title) and not video_record.get(title):
+                try:
+                    id = entry.get("id")
+                    watch_url = f"https://www.youtube.com/watch?v={id}"
+                    yt_to_spotify = ProcessYoutubeLink(youtube_url=watch_url)
+                    metadata = yt_to_spotify.process_youtube_url(True, default_cover)
+                    video_record[title] = metadata
+
+                    storage.new(artist, metadata, "artist")
+
+                    if index % 10:
+                        storage.save()
+                except SongNotFound:
+                    pass
+
+        artist_playlist = list(video_record.values())
+
+        storage.save()
+
+        return artist_playlist
+
