@@ -24,7 +24,7 @@ app = Flask(__name__, static_url_path="/static")
 app.register_blueprint(blueprint)
 CORS(app)
 
-@retry(stop=stop_after_delay(max_delay=60))
+@retry(stop=stop_after_delay(max_delay=30))
 @app.route("/get-user")
 def home():
     username = spotify_model.get_user()
@@ -32,11 +32,16 @@ def home():
     return jsonify({ "username": username })
 
 
+@app.route("/status")
+def status():
+    return jsonify({ "message": "OK" })
+
+
 @retry(stop=stop_after_delay(max_delay=120))
 @app.route("/user_playlist/<action>", methods=["POST"])
 def user_playlist(action: str):
     if request.method != "POST":
-        return "Only POST method allowed"
+        return jsonify({ "error": "Only POST method allowed" })
 
     # Access form data
     json_dict = cast(Dict[str, str], request.json)
@@ -66,7 +71,7 @@ def query(action: str):
 
     if not query:
         if not username:
-            return jsonify({ "message": "Search Query Missing" })
+            return jsonify({ "error": "Search Query Missing" }), 400
         else:
             query = ""
 
@@ -85,7 +90,7 @@ def query(action: str):
                     info(f"Spotify search: {result[0].title} by {result[0].artist}")
 
                 except (SongNotFound, TypeError) as e:
-                    return jsonify({ "message": str(e) })
+                    return jsonify({ "error": str(e) })
 
                 except Exception as e:
                     # catch edge case for future handling
@@ -93,7 +98,7 @@ def query(action: str):
                     raise e
 
                 if not result:
-                    return jsonify({ "message": f"No results for {query}" })
+                    return jsonify({ "error": f"No results for {query}" })
 
                 metadata = result[0]
 
@@ -108,6 +113,7 @@ def query(action: str):
                     recommended_tracks = search_on_youtube(result[1])
 
                 chdir(root_dir)
+                storage.save()
 
                 return jsonify({
                     "data": metadata.__dict__,
@@ -123,7 +129,7 @@ def query(action: str):
                 converter = convert_url(query, single)
 
                 if not converter:
-                    return f"<h2>No results for {query}</h2>"
+                    return jsonify({ "error": f"No results for {query}" }), 500
 
                 match converter[0]:
                     # handle single
@@ -159,7 +165,7 @@ def query(action: str):
                 result = spotify_model.artist_albums(query, essentials_playlist)
 
                 if not result:
-                    return jsonify({ "message": f"No results for {query}" }), 500
+                    return jsonify({ "error": f"No results for {query}" }), 500
 
                 artist_name = result[1]["name"]
                 artist_cover = result[1]["cover"]
@@ -230,7 +236,7 @@ def query(action: str):
                 return jsonify({
                     "error": "Only `Download` `Artist, or `Search` actions allowed"
                 }), 400
-    except (RetryError, ConnectionError, NameResolutionError) as e:
+    except (ConnectionError, NameResolutionError) as e:
         storage.save()
         return jsonify({ "error": str(e) }), 500
 

@@ -9,7 +9,7 @@ from logging import basicConfig, error, ERROR, info, INFO
 from hashlib import md5
 from models.errors import TitleExistsError, SongNotFound
 from models.metadata import Metadata
-from moviepy.editor import AudioFileClip
+from moviepy.audio.io.AudioFileClip import AudioFileClip
 from mutagen.id3 import ID3
 from mutagen.id3._frames import APIC, TIT2, TPE1, TRCK, TALB, USLT, TDRL
 from mutagen.mp3 import MP3
@@ -18,6 +18,7 @@ from requests import get
 from re import compile, sub, search, escape
 from typing import Any, cast
 from yt_dlp import YoutubeDL
+from yt_dlp.utils import DownloadError
 from tenacity import retry, stop_after_delay
 
 load_dotenv()
@@ -308,7 +309,7 @@ class ProcessSpotifyLink:
             if pattern_title_match:
                 pattern_title = pattern_title_match.group(0)
 
-            pattern_title_matches_yt = pattern_title in normalized_title
+            pattern_title_matches_yt = False if not pattern_title else pattern_title in normalized_title
 
             # prepare search conditions
             conditions = [
@@ -328,6 +329,7 @@ class ProcessSpotifyLink:
             else f"{self.spotify_track.artist} - {self.spotify_track.title} Audio"
         )
         title = self.remove_odd_keywords(title)
+        original_title = title
 
         # create search pattern
         pattern = title.replace(" Audio", "").lower()
@@ -337,7 +339,7 @@ class ProcessSpotifyLink:
         closest_match = None
         results = None
 
-        cached_result = storage.get(title, "ytdl")
+        cached_result = storage.get(original_title, "ytdl")
         if cached_result == "Not found":
             info(f"[Cache] {title} not found")
             raise SongNotFound(title)
@@ -351,7 +353,18 @@ class ProcessSpotifyLink:
             id = cached_result.get("id")
             return f"https://www.youtube.com/watch?v={id}"
         else:
-            results = self.youtube.extract_info(f"ytsearch:{title}", download=False)
+            try:
+                results = self.youtube.extract_info(f"ytsearch:{title}", download=False)
+            except DownloadError:
+                error("Failed to extract info")
+                # search for music video version
+                title = title.replace(" Audio", "")
+                try:
+                    info("Searching for music video version")
+                    results = self.youtube.extract_info(f"ytsearch:{title}", download=False)
+                except DownloadError:
+                    error(f"{title} unavailable")
+                    results = None
 
         if not results:
             raise SongNotFound(title)
@@ -396,7 +409,6 @@ class ProcessSpotifyLink:
                     info("No match found for music video version either")
 
                     # cache "Not found" indicating title not found
-                    original_title = title + " Audio"
                     storage.new(original_title, "Not found", "ytdl")
 
                     raise SongNotFound(title)
@@ -405,10 +417,13 @@ class ProcessSpotifyLink:
             f'Found: {closest_match.get("title")}, by channel: {closest_match.get("channel")}'
         )
 
-        storage.new(title, closest_match, "ytdl")
-
         id = closest_match.get("id")
-        return f"https://www.youtube.com/watch?v={id}"
+        link = f"https://www.youtube.com/watch?v={id}"
+
+        storage.new(original_title, closest_match, "ytdl")
+        storage.new(link, closest_match, "ytdl")
+
+        return link
 
     def remove_odd_keywords(self, string):
         """
@@ -470,8 +485,4 @@ class ProcessSpotifyLink:
             return
 
         self.add_to_download_history(song_title, True)
-
-
-
-
 

@@ -126,7 +126,7 @@ def playlist_downloader(
 
         except Exception as e:
             basicConfig(level=ERROR)
-            error(f"Error occurred during downnload: {e}")
+            error(f"Error occurred during download: {e}")
             exceptions.append(str(e))
 
     return exceptions

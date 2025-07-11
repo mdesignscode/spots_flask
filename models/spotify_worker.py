@@ -44,7 +44,6 @@ class SpotifyWorker:
         """
         self.track_url: str = track_url
 
-    @retry(stop=stop_after_delay(max_delay=60))
     def get_user(self) -> str | None:
         """Retrieves the current user
 

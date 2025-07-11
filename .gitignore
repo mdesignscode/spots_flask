@@ -7,3 +7,4 @@ __pycache__
 tests/test_download_urls.py
 q.txt
 cookies.txt
+/.metadata.json
