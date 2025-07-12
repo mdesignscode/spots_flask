@@ -21,6 +21,10 @@
 
 <br/>
 
+<em>Spots is now a pure Restful API, so you can implement your own UI, or just use something like cURL! I have ported the original Spots UI to React, which is available at [http://github.com/mdesignscode/spots_ui](http://github.com/mdesignscode/spots_ui)</em>
+
+<br/>
+
 <h2 style="text-align: center; color: #4CAF50;">Tech Stack</h2>
 <div style="display: flex; gap: 1.5rem; align-items: center; justify-content: center;">
   <a style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; cursor: pointer;" href="https://www.python.org/" class="stack_item">
@@ -100,8 +104,12 @@
 <p style="margin-left: 1rem;">Create a file called <strong>.env</strong> at the root of the project and add the following:</p>
 
     SPOTIPY_CLIENT_ID=spotify_client_id
-    client_secret=spotify_client_secret
+    SPOTIPY_CLIENT_SECRET=spotify_client_secret
     lyricsgenius_key=genius_secret_key
+    SPOTIPY_REDIRECT_URI='https://open.spotify.com/?'
+    # to sign in to your account (for user saved tracks), add these variables
+    username=<your_username>
+    use_oauth=True
 
 <h4>Create a Python virtual environment</h4>
 
