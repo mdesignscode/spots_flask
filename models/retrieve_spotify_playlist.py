@@ -29,7 +29,7 @@ def retrieve_spotify_playlist(url: str):
     response = get(url)
 
     # Parse the HTML content
-    soup = BeautifulSoup(response.text, 'html.parser')
+    soup = BeautifulSoup(response.text, "html.parser")
     # print(soup, end="\n\n")
 
     # Find all elements with data-encore-id="listRowTitle"
@@ -43,15 +43,14 @@ def retrieve_spotify_playlist(url: str):
     playlist_title = title_container.text if title_container else None
 
     # Extract the id attributes from the tracklist rows
-    id_values = [p_tag['id'] for p_tag in tracklist_rows]
+    id_values = [p_tag["id"] for p_tag in tracklist_rows]
 
     # Extract the Spotify track IDs using regex
     playlist_ids = []
     for id_value in id_values:
-        match = search(r'spotify:track:([a-zA-Z0-9]+)', id_value)
+        match = search(r"spotify:track:([a-zA-Z0-9]+)", id_value)
         if match:
             track_id = match.group(1)
             playlist_ids.append(track_id)
 
     return playlist_ids, cover_image, playlist_title
-

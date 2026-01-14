@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 """Metadata for a Spotify Track"""
 
 
@@ -16,7 +15,7 @@ class Metadata:
         lyrics: str = "",
         release_date: str | None = None,
         preview_url: str = "",
-        spotify_id: str = ""
+        spotify_id: str = "",
     ) -> None:
         """Creates a metadata object
 

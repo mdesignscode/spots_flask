@@ -24,3 +24,11 @@ class SongNotFound(Exception):
     def __init__(self, query: str):
         self.message = f"{query} not found"
         super().__init__(self.message)
+
+
+class VersionSkipped(Exception):
+    """A search term contains blacklisted keywords"""
+
+    def __init__(self, query: str):
+        self.message = f"[Blacklisted] {query} skipped"
+        super().__init__(self.message)

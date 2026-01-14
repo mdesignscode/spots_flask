@@ -1,15 +1,16 @@
-#!/usr/bin/python3
 """A class to retrieve metadata for a spotify track, album or playlist"""
 
 from datetime import datetime
 from typing import Any, Dict, List, Tuple, cast
 from dotenv import load_dotenv
-from engine import storage
 from logging import info, basicConfig, error, ERROR, INFO
 from lyricsgenius import Genius
 from models.errors import InvalidURL, SongNotFound
 from models.metadata import Metadata
-from models.retrieve_spotify_playlist import retrieve_spotify_playlist as scrape_playlist
+from models.retrieve_spotify_playlist import (
+    retrieve_spotify_playlist as scrape_playlist,
+)
+from models.scrape_lyrics import scrape_azlyrics
 from os import environ, getenv
 from re import search
 from requests.exceptions import ReadTimeout
@@ -19,7 +20,9 @@ from spotipy import Spotify
 from spotipy.util import prompt_for_user_token
 from tenacity import retry, stop_after_delay
 
+
 load_dotenv()
+basicConfig(level=INFO)
 
 
 class SpotifyWorker:
@@ -43,6 +46,10 @@ class SpotifyWorker:
             track_url (str, optional): A spotify url to be processed. Defaults to "".
         """
         self.track_url: str = track_url
+
+        from engine import storage
+
+        self._storage = storage
 
     def get_user(self) -> str | None:
         """Retrieves the current user
@@ -85,88 +92,92 @@ class SpotifyWorker:
             MetadataNotFound: if metadata not found for id.
         """
         basicConfig(level=INFO)
-        info("Searching for metadata on Spotify...")
+        info("[Get Track] Searching for metadata on Spotify...")
         url = "https://open.spotify.com/track/" + track_id
-        cache = storage.get(url, "spotify")
-        if cache:
-            info(f"Cached result: {cache.artist} - {cache.title}")
-            return cache
 
-        try:
-            # retrieve track from spotify
-            track = self.spotify.track(track_id)
-
-            if not track:
-                raise SongNotFound(f"Spotify id: {track_id}")
-
-            album = track["album"]
-
-            # get track number
-            total_track = album["total_tracks"]
-            track_position = track["track_number"]
-            track_number = f"{track_position}/{total_track}"
-
-            # cover image
-            cover = album["images"][0]["url"]
-
-            # get release date
+        def spotify_search():
             try:
-                release_date_str = album["release_date"]
-                release_date_obj = datetime.strptime(release_date_str, "%Y-%m-%d")
-                # release_date = release_date_obj.strftime("%Y")
-                release_date = release_date_obj.strftime("%Y-%m-%d")
-            except ValueError:
-                release_date = None
+                # retrieve track from spotify
+                track = self.spotify.track(track_id)
 
-            # get track name and artist
-            track_name = track["name"]
+                if not track:
+                    raise SongNotFound(f"Spotify id: {track_id}")
 
-            # artists
-            artist_list = [artist["name"] for artist in track["artists"]]
-            # remove featured artists from artists list
-            for artist in artist_list:
-                if artist.lower() in track_name.lower():
-                    artist_list.remove(artist)
+                album = track["album"]
 
-            artist = ", ".join(artist_list)
+                # get track number
+                total_track = album["total_tracks"]
+                track_position = track["track_number"]
+                track_number = f"{track_position}/{total_track}"
 
-            track_url = track["external_urls"]["spotify"]
-            album_name = album["name"]
+                # cover image
+                cover = album["images"][0]["url"]
 
-            # get track lyrics
-            try:
-                song = self.genius.search_song(track_name, artist)
+                # get release date
+                try:
+                    release_date_str = album["release_date"]
+                    release_date_obj = datetime.strptime(release_date_str, "%Y-%m-%d")
+                    # release_date = release_date_obj.strftime("%Y")
+                    release_date = release_date_obj.strftime("%Y-%m-%d")
+                except ValueError:
+                    release_date = None
 
-                if not song or "Verse" not in song.lyrics or track_name not in song.title:
+                # get track name and artist
+                track_name = track["name"]
+
+                # artists
+                artist_list = [artist["name"] for artist in track["artists"]]
+                # remove featured artists from artists list
+                for artist in artist_list:
+                    if artist.lower() in track_name.lower():
+                        artist_list.remove(artist)
+
+                artist = ", ".join(artist_list)
+
+                track_url = track["external_urls"]["spotify"]
+                album_name = album["name"]
+
+                # get track lyrics
+                try:
+                    song = self.genius.search_song(track_name, artist)
+
+                    if (
+                        not song
+                        or "Verse" not in song.lyrics
+                        or track_name not in song.title
+                    ):
+                        lyrics = scrape_azlyrics(artist, track_name)
+                    else:
+                        lyrics = song.lyrics
+                except Exception as e:
+                    error(e)
                     lyrics = ""
-                else:
-                    lyrics = song.lyrics
-            except Exception:
-                lyrics = ""
 
-            preview_url = track["preview_url"] or ""
+                preview_url = track["preview_url"] or ""
 
-            metadata = Metadata(
-                track_name,
-                artist=artist,
-                link=track_url,
-                cover=cover,
-                tracknumber=track_number,
-                album=album_name,
-                lyrics=lyrics,
-                release_date=release_date,
-                preview_url=preview_url,
-                spotify_id=track_id,
-            )
+                metadata = Metadata(
+                    track_name,
+                    artist=artist,
+                    link=track_url,
+                    cover=cover,
+                    tracknumber=track_number,
+                    album=album_name,
+                    lyrics=lyrics,
+                    release_date=release_date,
+                    preview_url=preview_url,
+                    spotify_id=track_id,
+                )
 
-            storage.new(url, metadata, "spotify")
+                self._storage.new(url, metadata, "spotify")
 
-            return metadata
+                return metadata
 
-        except SpotifyException:
-            basicConfig(level=ERROR)
-            error(f"{self.track_url} is invalid")
-            raise InvalidURL(self.track_url)
+            except SpotifyException:
+                basicConfig(level=ERROR)
+                error(f"{self.track_url} is invalid")
+                raise InvalidURL(self.track_url)
+
+        return self._storage.get(url, "spotify", spotify_search)
 
     @retry(stop=stop_after_delay(60))
     def process_url(self, single: bool = True):
@@ -210,12 +221,17 @@ class SpotifyWorker:
 
                 # get playlist tracks
                 playlist = spotify_obj["tracks"]["items"]
+                playlist_len = len(playlist)
 
                 playlist_data = album_data
                 # get metadata for each track in playlist
-                for track in playlist:
+                for index, track in enumerate(playlist):
+                    info(f"Processing track: {index + 1}/{playlist_len}")
                     try:
                         track_list.append(self.get_track(track["track"]["id"]))
+
+                        if (index % 10 == 0) or index == (playlist_len - 1):
+                            self._storage.save()
                     except Exception as e:
                         error(e)
 
@@ -238,12 +254,17 @@ class SpotifyWorker:
 
                 # get album tracks
                 album = spotify_obj["tracks"]["items"]
+                album_len = len(album)
 
                 playlist_data = album_data
                 # get metadata for each track in playlist
-                for track in album:
+                for index, track in enumerate(album):
+                    info(f"Processing track: {index + 1}/{album_len}")
                     try:
                         track_list.append(self.get_track(track["id"]))
+
+                        if (index % 10 == 0) or index == (album_len - 1):
+                            self._storage.save()
                     except Exception as e:
                         error(f"Error occurred while processing playlist: {e}")
 
@@ -391,7 +412,7 @@ class SpotifyWorker:
         artist_id = ""
 
         # get artist by id
-        if (artist_url in artist):
+        if artist_url in artist:
             artist_id = artist.replace(artist_url, "").split("?")[0]
             result = self.spotify.__getattribute__("artist")(artist_id)
 
@@ -440,7 +461,8 @@ class SpotifyWorker:
         artist_albums = list(
             filter(
                 lambda item: any(
-                    artist_obj["name"].lower() == artist.lower() for artist_obj in item["artists"]
+                    artist_obj["name"].lower() == artist.lower()
+                    for artist_obj in item["artists"]
                 ),
                 data["items"],
             )
@@ -459,15 +481,21 @@ class SpotifyWorker:
 
         if essentials_playlist:
             # get artist's This Is playlist
-            scraped_ids, scraped_cover, scraped_title = scrape_playlist(essentials_playlist)
+            scraped_ids, scraped_cover, scraped_title = scrape_playlist(
+                essentials_playlist
+            )
             scraped_playlist = [self.get_track(id) for id in scraped_ids]
 
-            essential_cover = scraped_cover if scraped_cover else '/static/single-cover.jpg'
-            essential_title = scraped_title if scraped_title else f'This is {artist_name}'
+            essential_cover = (
+                scraped_cover if scraped_cover else "/static/single-cover.jpg"
+            )
+            essential_title = (
+                scraped_title if scraped_title else f"This is {artist_name}"
+            )
             scraped_data = {
-                    'cover': essential_cover,
-                    'name': essential_title,
-                    'artist': artist_name
+                "cover": essential_cover,
+                "name": essential_title,
+                "artist": artist_name,
             }
 
             albums.append((scraped_playlist, scraped_data))
@@ -512,15 +540,19 @@ class SpotifyWorker:
 
                     if user_tracks:
                         # append the next set of ids
-                        [
+                        for track in user_tracks["items"]:
                             id_list.append(track["track"]["id"])
-                            for track in user_tracks["items"]
-                        ]
 
                     index += limit
 
             # get metadata for each track
-            return [self.get_track(id) for id in id_list]
+            metadata_list = []
+            for index, id in enumerate(id_list):
+                # get track data
+                metadata = self.get_track(id)
+                metadata_list.append(metadata)
+
+            return metadata_list
 
     def signin(self):
         """signs into a user's spotify account"""
@@ -552,4 +584,3 @@ class SpotifyWorker:
             self.spotify.current_user_saved_tracks_delete([tracks])
         else:
             raise TypeError("`delete` or `add` actions only")
-

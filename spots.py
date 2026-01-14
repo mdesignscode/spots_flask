@@ -4,7 +4,6 @@
 from logging import ERROR, basicConfig, error, info
 from os import chdir, getenv
 from requests import get
-from models import spotify_model
 from server import app, chdir_to_music
 
 
@@ -13,7 +12,7 @@ if __name__ == "__main__":
 
     # check network status
     try:
-        get("https://www.google.com", timeout=2)
+        get("https://www.google.com", timeout=10)
     except:
         basicConfig(level=ERROR)
         error("Network error. Check your internet connection.")
@@ -24,8 +23,10 @@ if __name__ == "__main__":
     storage.reload()
 
     # sign user in
+    from models import spotify_client
+
     if getenv("username"):
-        spotify_model.signin()
+        spotify_client.signin()
 
     # change back to root path
     chdir(root_dir)

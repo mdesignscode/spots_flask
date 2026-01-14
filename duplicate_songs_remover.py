@@ -11,6 +11,7 @@ original_songs = {}
 
 i = 0
 
+
 def process_song(file_path):
     """Removes a song if it is a duplicate"""
     try:
