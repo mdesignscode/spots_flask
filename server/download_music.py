@@ -7,9 +7,10 @@ from flask import Blueprint, request, jsonify
 from models.spotify_worker import Metadata, SpotifyWorker
 from models.process_youtube_link import ProcessYoutubeLink
 from models.errors import TitleExistsError
-from os import chdir, getenv
+from os import getenv
 from services.youtube_search_service import YoutubeSearchService
-from tenacity import retry, stop_after_delay
+from tenacity import stop_after_delay
+from engine.retry import retry
 
 
 blueprint = Blueprint("download", __name__, url_prefix="/download")
@@ -22,9 +23,6 @@ def download_saved_tracks():
     if not username:
         return jsonify({"error": "No username"})
 
-    from . import chdir_to_music
-
-    root_dir = chdir_to_music()
     spotify = SpotifyWorker()
     saved_tracks = spotify.user_saved_tracks()
 
@@ -34,8 +32,6 @@ def download_saved_tracks():
     exceptions = playlist_downloader(saved_tracks, username)
 
     storage.save()
-
-    chdir(root_dir)
 
     return jsonify(
         {
@@ -52,10 +48,6 @@ def download_saved_tracks():
 @blueprint.route("/single", methods=["POST"])
 def download_song():
     if request.method == "POST":
-        from . import chdir_to_music
-
-        root_dir = chdir_to_music()
-
         try:
             # Access json data
             json_data = cast(Dict[str, str], request.json)
@@ -101,7 +93,6 @@ def download_song():
         try:
             youtube.ytdlp.download_youtube_video(youtube_url, metadata)
             storage.save()
-            chdir(root_dir)
             return jsonify({"message": "Successfully downloaded"}), 200
         except TitleExistsError as e:
             return jsonify({"message": f"Download failed: {str(e)}"}), 500
@@ -117,10 +108,6 @@ def download_song():
 def download_playlist():
     query = request.args.get("artist")
 
-    from . import chdir_to_music
-
-    root_dir = chdir_to_music()
-
     json_dict = cast(Dict[str, str], request.json)
     json_data = json_dict["selected_songs"]
     playlist_name = json_dict["playlist_name"]
@@ -130,8 +117,6 @@ def download_playlist():
     exceptions = playlist_downloader(selected_songs, playlist_name, bool(query))
 
     storage.save()
-
-    chdir(root_dir)
 
     return jsonify(
         {

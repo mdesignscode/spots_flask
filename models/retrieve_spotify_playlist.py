@@ -1,5 +1,5 @@
 from bs4 import BeautifulSoup
-from logging import basicConfig, info, INFO
+from logging import info
 from requests import get
 from re import search
 
@@ -22,7 +22,6 @@ def retrieve_spotify_playlist(url: str):
     if not search("spotify", url) and search("playlist", url):
         raise TypeError("Please provide a valid Spotify playlist url")
 
-    basicConfig(level=INFO)
     info("Scraping spotify playlist")
 
     # Fetch the webpage content

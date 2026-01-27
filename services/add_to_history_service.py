@@ -14,7 +14,7 @@ class AddToHistoryService:
         Raises:
             TitleExistsError: if title already in downloads history
         """
-        history_file = ".spots_download_history.txt"
+        history_file = "./Music/.spots_download_history.txt"
 
         # Check if the file exists, otherwise create it
         if not path.isfile(history_file):
@@ -32,3 +32,4 @@ class AddToHistoryService:
         if add_title:
             with open(history_file, "a", newline="") as file:
                 file.write(f"{title}\n")
+

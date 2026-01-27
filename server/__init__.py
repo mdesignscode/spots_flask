@@ -7,13 +7,13 @@ from logging import error, info
 from models.errors import SongNotFound
 from models.metadata import Metadata
 from models.process_youtube_link import ProcessYoutubeLink
-from os import chdir, getcwd, getenv, makedirs, chdir
-from os.path import join, exists, basename
+from os import getenv
 from requests.exceptions import ConnectionError
 from server.download_music import blueprint
 from services.youtube_search_service import YoutubeSearchService
 from typing import Dict, cast
-from tenacity import retry, stop_after_delay
+from tenacity import stop_after_delay
+from engine.retry import retry
 from urllib3.exceptions import NameResolutionError
 
 
@@ -21,6 +21,55 @@ app = Flask(__name__, static_url_path="/static")
 app.register_blueprint(blueprint)
 CORS(app)
 
+@app.route("/update-yt-likes")
+def update_yt_likes():
+    from engine import storage
+    from json import load, dumps
+    from models.spotify_worker import SpotifyWorker
+
+    sp = SpotifyWorker()
+    favs = sp.user_saved_tracks()
+    print(favs)
+
+    # def open_file(path = "./Music/.metadata.json"):
+    #     with open(path, "r") as f:
+    #         return load(f)
+    #
+    # def process_ids(ids):
+    #     from services.youtube_search_service import YoutubeSearchService
+    #     p_len = len(ids)
+    #
+    #     searcher = YoutubeSearchService()
+    #     yt_titles = []
+    #
+    #     for index, id in enumerate(ids):
+    #         print(f"**Processing id {index + 1}/{p_len}")
+    #         watch_url = f"https://www.youtube.com/watch?v={id}"
+    #         if storage.get(watch_url, "yt_likes"):
+    #             print("Already processed")
+    #             continue
+    #
+    #         try:
+    #             metadata = searcher.process_youtube_url(watch_url)
+    #         except SongNotFound:
+    #             continue
+    #
+    #         title = f"{metadata.artist} - {metadata.title}"
+    #         yt_titles.append(title)
+    #
+    #         storage.new(title, query_type="yt_likes")
+    #         storage.new(watch_url, query_type="yt_likes")
+    #         if (index % 10 == 0) or (index == (p_len - 1)):
+    #             storage.save()
+    #
+    #     return yt_titles
+    #
+    # def main():
+    #     ids = open_file("liked_songs.json")
+    #     process_ids(ids)
+    #
+    # main()
+    return "updated likes"
 
 @retry(stop=stop_after_delay(max_delay=30))
 @app.route("/get-user")
@@ -40,15 +89,12 @@ def status():
 @retry(stop=stop_after_delay(max_delay=120))
 @app.route("/transfer_likes", methods=["POST"])
 def transfer_likes():
-    if request.method != "POST":
-        return jsonify({"error": "Only POST method allowed"})
-
-    root_dir = chdir_to_music()
-
     youtube = ProcessYoutubeLink()
-    youtube.transfer_spotify_likes_to_yt()
+    try:
+        youtube.transfer_spotify_likes_to_yt()
+    except SongNotFound:
+        return jsonify({"message": "No Spotify likes"})
 
-    chdir(root_dir)
     return "Added to likes"
 
 
@@ -56,9 +102,6 @@ def transfer_likes():
 @app.route("/user_playlist/<action>", methods=["POST"])
 def user_playlist(action: str):
     from models import spotify_client
-
-    if request.method != "POST":
-        return jsonify({"error": "Only POST method allowed"})
 
     # Access form data
     json_dict = cast(Dict[str, str], request.json)
@@ -76,12 +119,11 @@ def user_playlist(action: str):
 
 
 # @retry(stop=stop_after_delay(max_delay=60))
-@app.route("/query/<action>")
+@app.route("/query/<action>", methods=["GET"])
 def query(action: str):
     from models import spotify_client
     from engine import storage
 
-    root_dir = chdir_to_music()
     query = request.args.get("q")
     essentials_playlist = request.args.get("essentials_playlist")
     single_arg = request.args.get("single")
@@ -110,7 +152,7 @@ def query(action: str):
                         return jsonify({"message": "No search results"})
                     info(f"Spotify search: {result[0].title} by {result[0].artist}")
 
-                except (SongNotFound) as e:
+                except SongNotFound as e:
                     return jsonify({"error": str(e)})
 
                 except Exception as e:
@@ -133,7 +175,6 @@ def query(action: str):
                 if result[1]:
                     recommended_tracks = search_on_youtube(result[1])
 
-                chdir(root_dir)
                 storage.save()
 
                 return jsonify(
@@ -278,21 +319,4 @@ def query(action: str):
     except (ConnectionError, NameResolutionError) as e:
         storage.save()
         return jsonify({"error": str(e)}), 500
-
-
-def chdir_to_music() -> str:
-    # Get the current working directory
-    current_dir = getcwd()
-
-    # Check if the current directory is 'spots'
-    if basename(current_dir) == "spots_flask":
-        # Create a folder named 'Music' if it doesn't exist
-        music_folder = join(current_dir, "Music")
-        if not exists(music_folder):
-            makedirs(music_folder)
-
-        # Change to the 'Music' folder
-        chdir(music_folder)
-
-    return current_dir
 

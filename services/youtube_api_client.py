@@ -5,6 +5,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
+PICKLE_TOKEN = "./Music/token.pickle"
 
 
 class YouTubeApiClient:
@@ -37,8 +38,8 @@ class YouTubeApiClient:
             Unknown: YouTube client.
         """
         creds = None
-        if os.path.exists("token.pickle"):
-            with open("token.pickle", "rb") as f:
+        if os.path.exists(PICKLE_TOKEN):
+            with open(PICKLE_TOKEN, "rb") as f:
                 creds = pickle.load(f)
 
         if not creds or not creds.valid:
@@ -46,11 +47,11 @@ class YouTubeApiClient:
                 creds.refresh(Request())
             else:
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    "client_secrets.json", SCOPES
+                    "./Music/client_secrets.json", SCOPES
                 )
                 creds = flow.run_local_server(port=0)
 
-            with open("token.pickle", "wb") as f:
+            with open(PICKLE_TOKEN, "wb") as f:
                 pickle.dump(creds, f)
 
         return build("youtube", "v3", credentials=creds)
@@ -66,3 +67,4 @@ class YouTubeApiClient:
             None
         """
         self.service.videos().rate(id=video_id, rating="like").execute()
+

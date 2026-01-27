@@ -1,9 +1,8 @@
 """A class to retrieve metadata for a spotify track, album or playlist"""
 
 from datetime import datetime
-from typing import Any, Dict, List, Tuple, cast
 from dotenv import load_dotenv
-from logging import info, basicConfig, error, ERROR, INFO
+from logging import info, error
 from lyricsgenius import Genius
 from models.errors import InvalidURL, SongNotFound
 from models.metadata import Metadata
@@ -12,17 +11,18 @@ from models.retrieve_spotify_playlist import (
 )
 from models.scrape_lyrics import scrape_azlyrics
 from os import environ, getenv
-from re import search
+from re import escape, search
 from requests.exceptions import ReadTimeout
 from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyClientCredentials
 from spotipy import Spotify
 from spotipy.util import prompt_for_user_token
-from tenacity import retry, stop_after_delay
+from tenacity import stop_after_delay
+from engine.retry import retry
+from typing import Any, Dict, List, Tuple, cast
 
 
 load_dotenv()
-basicConfig(level=INFO)
 
 
 class SpotifyWorker:
@@ -91,7 +91,6 @@ class SpotifyWorker:
             InvalidURL: if spotify url invalid.
             MetadataNotFound: if metadata not found for id.
         """
-        basicConfig(level=INFO)
         info("[Get Track] Searching for metadata on Spotify...")
         url = "https://open.spotify.com/track/" + track_id
 
@@ -168,12 +167,11 @@ class SpotifyWorker:
                     spotify_id=track_id,
                 )
 
-                self._storage.new(url, metadata, "spotify")
+                self._storage.new(url, metadata, query_type="spotify")
 
                 return metadata
 
             except SpotifyException:
-                basicConfig(level=ERROR)
                 error(f"{self.track_url} is invalid")
                 raise InvalidURL(self.track_url)
 
@@ -198,8 +196,6 @@ class SpotifyWorker:
             ReadTimeout:
                 Raised when the network connection times out during processing.
         """
-        basicConfig(level=ERROR)
-
         track_list: list[Metadata] = []
         playlist_data = {}
         try:
@@ -285,7 +281,6 @@ class SpotifyWorker:
                 raise InvalidURL(self.track_url)
 
         except ReadTimeout:
-            basicConfig(level=ERROR)
             error("Network Connection Timed Out!")
             return track_list, playlist_data
 
@@ -306,10 +301,7 @@ class SpotifyWorker:
         Returns:
             Tuple[Metadata, List[Metadata] | None]: The metadata of searched track and a list of recommended tracks.
         """
-        basicConfig(level=INFO)
-
         if "-" not in query:
-            basicConfig(level=ERROR)
             error_txt = "Search format: `Artist` - `Title`"
             error(error_txt)
             raise TypeError(error_txt)
@@ -321,7 +313,10 @@ class SpotifyWorker:
             info(f"{query} not found")
             raise SongNotFound(query)
 
-        id = single_result["tracks"]["items"][0]["id"]
+        try:
+            id = single_result["tracks"]["items"][0]["id"]
+        except IndexError:
+            raise SongNotFound(query)
 
         # get metadata
         try:
@@ -334,9 +329,9 @@ class SpotifyWorker:
         query_artist = query.split(" - ")[0].lower()
         result_artist = single_data.artist.lower()
         if len(query_artist) < len(result_artist):
-            artist_match = search(query_artist, result_artist)
+            artist_match = search(escape(query_artist), result_artist)
         else:
-            artist_match = search(result_artist, query_artist)
+            artist_match = search(escape(result_artist), query_artist)
 
         # if search result does not match query
         # then query may be a single album
@@ -349,7 +344,10 @@ class SpotifyWorker:
                 info(f"{query} not found")
                 raise SongNotFound(query)
 
-            album_id = results["albums"]["items"][0]["id"]
+            try:
+                album_id = results["albums"]["items"][0]["id"]
+            except IndexError:
+                raise SongNotFound(query)
 
             # get album search function
             get_album = self.spotify.__getattribute__("album")
@@ -421,7 +419,7 @@ class SpotifyWorker:
             result = self.spotify.search(artist, 1, type="artist")
 
         if not result:
-            return
+            raise SongNotFound(artist)
 
         artist_name = result["name"]
         info(f"Searching for albums by {artist_name}")
@@ -552,6 +550,13 @@ class SpotifyWorker:
                 metadata = self.get_track(id)
                 metadata_list.append(metadata)
 
+                # add to likes cache
+                title = f"{metadata.artist} - {metadata.title}"
+                self._storage.new(title, metadata, query_type="spotify_likes")
+
+                if (index % 10 == 0) or (index == (len(id_list) - 1)):
+                        self._storage.save()
+
             return metadata_list
 
     def signin(self):
@@ -584,3 +589,4 @@ class SpotifyWorker:
             self.spotify.current_user_saved_tracks_delete([tracks])
         else:
             raise TypeError("`delete` or `add` actions only")
+

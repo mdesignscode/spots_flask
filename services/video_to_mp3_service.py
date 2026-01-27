@@ -1,11 +1,11 @@
-from logging import basicConfig, error, ERROR, info
-from os import remove
+from logging import error, info
+from models.metadata import Metadata
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from mutagen.id3 import ID3
 from mutagen.id3._frames import APIC, TIT2, TPE1, TRCK, TALB, USLT, TDRL
 from mutagen.mp3 import MP3
+from os import remove
 from requests import get
-from models.metadata import Metadata
 from services.add_to_history_service import AddToHistoryService
 
 
@@ -108,7 +108,6 @@ class VideoToMp3Service:
             audio.save(audio_path)
 
         except FileNotFoundError as exc:
-            basicConfig(level=ERROR)
             error(f"{audio_path} not found...")
             raise exc
 
@@ -152,7 +151,6 @@ class VideoToMp3Service:
             self.update_metadata(new_file, metadata)
 
         except FileNotFoundError:
-            basicConfig(level=ERROR)
             error(f"{old_file} not found...")
             return
 

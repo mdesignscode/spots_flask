@@ -1,7 +1,16 @@
 from __future__ import unicode_literals
-from re import compile, sub, search, escape, VERBOSE, IGNORECASE
 
-DELIMITERS_PATTERN = r"( x | & |\s(ft|feat|featuring)\W?)"
+from re import (
+    compile,
+    sub,
+    escape,
+    VERBOSE,
+    IGNORECASE,
+)
+from typing import Set
+
+
+DELIMITERS_PATTERN = compile(r"( x | & |\s(ft|feat|featuring)\W?)", IGNORECASE)
 
 FEAT_PATTERN = compile(
     r"""
@@ -16,57 +25,38 @@ FEAT_PATTERN = compile(
 
 class YoutubeMatcher:
     """
-    A service for matching search queries to YouTube video titles
-
-    Methods:
-        @remove_odd_keywords
-
-        @match_titles
+    A deterministic matcher for resolving Spotify patterns
+    against YouTube video titles.
     """
 
-    @staticmethod
-    def _extract_artist_title(value: str) -> tuple[str, str]:
-        """
-        Extract and normalize (artist, title) from:
-        'Artist - Song ft. Someone'
-        """
-
-        normalize = lambda s: sub(r"\W+", "", s).lower()
-
-        value = YoutubeMatcher.remove_odd_keywords(value).strip()
-
-        if " - " not in value:
-            return "", normalize(value)
-
-        artist, title = value.split(" - ", 1)
-
-        # remove feat / ft / featuring
-        title = FEAT_PATTERN.sub("", title)
-
-        # remove leftover parentheses
-        title = sub(r"\s*\(.*?\)", "", title)
-        # parenthesis equivalent of YouTube title in Spotify is `-`
-        title = title.split(" - ")[0]
-
-        return normalize(artist), normalize(title)
+    # -----------------------------
+    # Normalization helpers
+    # -----------------------------
 
     @staticmethod
-    def _contains_only_type(items: list, expected_type: type) -> bool:
-        return all(isinstance(item, expected_type) for item in items)
+    def _normalize_string(value: str) -> str:
+        return sub(r"\W+", "", value).lower()
+
+    @staticmethod
+    def _normalize_artist_set(_value: str) -> Set[str]:
+        """
+        Convert an artist string into a normalized set of artist tokens.
+        """
+        value = _value.lower()
+        value = DELIMITERS_PATTERN.sub(",", value)
+
+        artists = []
+        for part in value.split(","):
+            cleaned = sub(r"\W+", "", part)
+            if cleaned:
+                artists.append(cleaned)
+
+        return set(artists)
 
     @staticmethod
     def remove_odd_keywords(title: str, keywords_list: list[str] = []) -> str:
-        """
-        Remove keywords that may lead to inconsistent matched results
-
-        Args:
-            title (str): The title to be processed.
-            keywords_list (list[str]): An optional keywords list to filter. Defaults to an empty list.
-
-        Returns
-            str: A keyword stripped title.
-        """
         defined_keywords = [
+            " (Live Session) | Vevo Ctrl",
             " [Official Audio]",
             " (Audio Visual)",
             " | Official Audio",
@@ -86,126 +76,108 @@ class YoutubeMatcher:
             " [Official Lyrics Video]",
             " (Lyric Video)",
             " (Lyrics)",
+            " (Official HD Video)",
         ]
 
         title = title.replace("(with", "(feat.")
 
         odd_keywords = (
             defined_keywords + keywords_list
-            if YoutubeMatcher._contains_only_type(keywords_list, str)
+            if all(isinstance(k, str) for k in keywords_list)
             else defined_keywords
         )
 
-        pattern = compile("|".join(escape(k) for k in odd_keywords))
-        return pattern.sub("", title)
+        pattern = compile("|".join(escape(k) for k in odd_keywords), IGNORECASE)
+        return pattern.sub("", title).strip()
+
+    # -----------------------------
+    # Extraction
+    # -----------------------------
 
     @staticmethod
-    def _normalize_legacy(title: str, pattern: str) -> dict:
+    def _extract_artist_title(value: str) -> tuple[str, str]:
         """
-        Normalize both Spotify pattern and YouTube title into comparable forms.
-
-        Returns:
-            dict: a dict containing normalized search patterns.
+        Extract (artist, title) from:
+        'Artist - Song ft. Someone'
         """
-        normalize_string = lambda s: sub(r"\W", "", s).lower()
+        value = YoutubeMatcher.remove_odd_keywords(value)
 
-        processed_title = YoutubeMatcher.remove_odd_keywords(title)
+        if " - " not in value:
+            return "", YoutubeMatcher._normalize_string(value)
 
-        # normalize delimiters
-        delimiters = compile(DELIMITERS_PATTERN)
-        consistent_title = delimiters.sub(", ", processed_title.lower())
+        artist, title = value.split(" - ", 1)
 
-        normalized_title = normalize_string(consistent_title)
-        normalized_pattern = normalize_string(pattern)
+        # strip feat info from title
+        title = FEAT_PATTERN.sub("", title)
+        title = sub(r"\s*\(.*?\)", "", title)
+        title = title.split(" - ")[0]
 
-        # try extracting title-only parts (after "Artist - ")
-        try:
-            _, yt_part = consistent_title.split(" - ", maxsplit=1)
-            yt_title = normalize_string(yt_part)
+        return artist.strip(), title.strip()
 
-            _, sp_part = pattern.split(" - ", maxsplit=1)
-            spotify_title = normalize_string(sp_part)
-        except ValueError:
-            yt_title = normalized_title
-            spotify_title = normalized_pattern
-
-        return {
-            "processed_title": processed_title,
-            "spotify_title": spotify_title,
-            "yt_title": yt_title,
-            "normalized_pattern": normalized_pattern,
-            "normalized_title": normalized_title,
-        }
-
-    @staticmethod
-    def _normalize(title: str, pattern: str) -> dict:
-        yt_artist, yt_title = YoutubeMatcher._extract_artist_title(title)
-        sp_artist, sp_title = YoutubeMatcher._extract_artist_title(pattern)
-
-        return {
-            "yt_artist": yt_artist,
-            "yt_title": yt_title,
-            "sp_artist": sp_artist,
-            "sp_title": sp_title,
-        }
-
-    @staticmethod
-    def _match_titles(pattern: str, title: str) -> bool:
-        """
-        Match 2 titles
-
-        Args:
-            pattern (str): The pattern to be matched against.
-            title (str): The string to match pattern with.
-
-        Returns:
-            bool: True if titles match.
-        """
-        norm = YoutubeMatcher._normalize(title, pattern)
-
-        spotify_match = norm["spotify_title"] in norm["normalized_title"]
-        yt_match = norm["yt_title"] in norm["normalized_pattern"]
-        pattern_match = norm["normalized_pattern"] in norm["normalized_title"]
-        title_match = norm["normalized_title"] in norm["normalized_pattern"]
-
-        # extract parenthetical info (e.g. remix)
-        extract_pattern = r"\s\([\w\W]*"
-        pattern_title_match = search(extract_pattern, pattern)
-        pattern_title = pattern_title_match.group(0) if pattern_title_match else ""
-        pattern_title_matches_yt = (
-            pattern_title in norm["normalized_title"] if pattern_title else False
-        )
-
-        if any(
-            [
-                spotify_match,
-                yt_match,
-                pattern_match,
-                title_match,
-                pattern_title_matches_yt,
-            ]
-        ):
-            return True
-
-        return False
+    # -----------------------------
+    # Matching logic
+    # -----------------------------
 
     @staticmethod
     def match_titles(pattern: str, title: str) -> bool:
-        norm = YoutubeMatcher._normalize(title, pattern)
+        """
+        Match a Spotify-style pattern against a YouTube title.
+        """
 
-        artist_match = (
-            norm["yt_artist"]
-            and norm["sp_artist"]
-            and norm["yt_artist"] == norm["sp_artist"]
-        )
+        # extract raw components
+        yt_artist_raw, yt_title_raw = YoutubeMatcher._extract_artist_title(title)
+        sp_artist_raw, sp_title_raw = YoutubeMatcher._extract_artist_title(pattern)
 
-        title_match = (
-            norm["yt_title"]
-            and norm["sp_title"]
-            and norm["yt_title"] == norm["sp_title"]
-        )
+        if not yt_title_raw or not sp_title_raw:
+            return False
 
-        partial_match = artist_match or title_match
-        full_match = artist_match and title_match
-        return partial_match if not all(norm.values()) else full_match
+        # normalize titles
+        yt_title = YoutubeMatcher._normalize_string(yt_title_raw)
+        sp_title = YoutubeMatcher._normalize_string(sp_title_raw)
+
+        print(f"\n\nYT: {yt_title}\nSP: {sp_title}\n{'#' * 30}")
+
+        title_match_conditions = [
+            yt_title == sp_title,
+            yt_title in sp_title,
+            sp_title in yt_title,
+        ]
+        title_match = any(title_match_conditions)
+        print(f"title match: {title_match}")
+        if not title_match:
+            print(f"Lost title found!!\n{'@'*50}\n\n")
+
+        # normalize artist sets
+        yt_artists = YoutubeMatcher._normalize_artist_set(yt_artist_raw)
+        sp_artists = YoutubeMatcher._normalize_artist_set(sp_artist_raw)
+
+        print(yt_artists)
+        print("*" * 10)
+        print(sp_artists)
+
+        sp_artist_in_yt = [artist in yt_artists for artist in sp_artists]
+        yt_artist_in_sp = [artist in sp_artists for artist in yt_artists]
+        artist_match_conditions = [
+            not yt_artists,  # for yt videos without artist
+            any(sp_artist_in_yt),
+            any(yt_artist_in_sp),
+            bool(yt_artists & sp_artists),
+        ]
+        artist_match = any(artist_match_conditions)
+        print(f"artist match: {artist_match}")
+
+        # -----------------------------
+        # Matching rules
+        # -----------------------------
+
+        # strict match
+        if title_match and artist_match:
+            return True
+
+        # controlled fallback:
+        # allow title-only match ONLY if title is sufficiently unique
+        if title_match and len(yt_title) > 10:
+            return True
+
+        return False
 

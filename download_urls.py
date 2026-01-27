@@ -1,22 +1,23 @@
 """Contains functions that processes a Spotify or YouTube url"""
 
-from logging import ERROR, basicConfig, error, info, INFO
 from dotenv import load_dotenv
-from tenacity import retry, stop_after_delay
+from logging import error, info
+from models.sentinel import Sentinel
 from models.spotify_worker import SpotifyWorker, Metadata
 from models.errors import InvalidURL, SongNotFound
 from models.process_spotify_link import ProcessSpotifyLink
 from models.process_youtube_link import ProcessYoutubeLink
+from re import search
 from services.youtube_search_service import YoutubeSearchService
 from services.ytdlp_client import YtDlpClient
-from re import search
-from typing import List, Tuple, cast, Any
+from tenacity import stop_after_delay
+from engine.retry import retry
+from typing import List, Sequence, Tuple, cast, Any
 from yt_dlp import YoutubeDL
 from yt_dlp.utils import DownloadError
 
 
 load_dotenv()
-basicConfig(level=INFO)
 
 
 @retry(stop=stop_after_delay(60))
@@ -56,10 +57,7 @@ def convert_url(url: str, single: bool = False) -> dict[str, Any]:
             return {
                 "resource_type": "single",
                 "youtube_title": f"{youtube_result[0]} - {youtube_result[1]}",
-                "metadata": {
-                    "single": metadata,
-                    "recommended": result[1]
-                },
+                "metadata": {"single": metadata, "recommended": result[1]},
                 "filesize": youtube_result[2],
                 "playlist_info": None,
             }
@@ -119,10 +117,7 @@ def convert_url(url: str, single: bool = False) -> dict[str, Any]:
                 return {
                     "resource_type": "single",
                     "youtube_title": f"{artist} - {yt_title}",
-                    "metadata": {
-                        "single": metadata,
-                        "recommended": []
-                    },
+                    "metadata": {"single": metadata, "recommended": []},
                     "filesize": file_size,
                 }
             except DownloadError:
@@ -163,7 +158,6 @@ def playlist_downloader(
             spotify.ytdlp.download_youtube_video(youtube_url, track, folder)
 
         except Exception as e:
-            basicConfig(level=ERROR)
             error(f"Error occurred during download: {e}")
             exceptions.append(str(e))
 
@@ -232,8 +226,8 @@ def search_on_youtube(
 
         try:
             try:
-                artist, title, filesize = (
-                    youtube.youtube_search.process_spotify_title(metadata)
+                artist, title, filesize = youtube.youtube_search.process_spotify_title(
+                    metadata
                 )
                 yt_title = f"{artist} - {title}"
 
@@ -248,7 +242,6 @@ def search_on_youtube(
                 info(f"{metadata.artist} - {metadata.title} not found")
                 continue
         except Exception as e:
-            basicConfig(level=ERROR)
             error(f"Error occurred during YouTube search: {e}")
             raise Exception(e)
 
@@ -269,6 +262,7 @@ def search_artist_on_yt(artist: str, default_cover: str):
     from engine import storage
 
     info(f"[Search Artist on YouTube] Searching for {artist}'s songs on YT")
+
     def artist_search():
         ydl_opts = {
             "quiet": True,
@@ -278,40 +272,42 @@ def search_artist_on_yt(artist: str, default_cover: str):
         ytdl = YtDlpClient(options=ydl_opts)
         search_results = ytdl.search(artist, False)
 
-        try:
-            video_record: dict[str, Metadata] = {}
-
-            playlist_len = len(search_results["entries"])
-            for index, entry in enumerate(search_results["entries"]):
-                info(
-                    f"[Search Artist on YouTube] Searching for track {index + 1}/{playlist_len} on YouTube..."
-                )
-                title = entry.get("title")
-
-                if search(artist, title) and not video_record.get(title):
-                    try:
-                        id = entry.get("id")
-                        watch_url = f"https://www.youtube.com/watch?v={id}"
-                        yt_to_spotify = ProcessYoutubeLink()
-                        metadata = yt_to_spotify.youtube_search.process_youtube_url(
-                            watch_url, True, default_cover
-                        )
-                        video_record[title] = metadata
-
-                        if (index % 10 == 0) or (index == (playlist_len - 1)):
-                            storage.save()
-
-                    except SongNotFound:
-                        continue
-
-                artist_playlist = list(video_record.values())
-                storage.new(artist, artist_playlist, "artist")
-
-                storage.save()
-
-                return artist_playlist
-        except KeyError:
+        if not search_results:
             raise SongNotFound(artist)
+
+        video_record: dict[str, Metadata] = {}
+
+        playlist_len = len(search_results["entries"])
+        for index, entry in enumerate(search_results["entries"]):
+            info(
+                f"[Search Artist on YouTube] Searching for track {index + 1}/{playlist_len} on YouTube..."
+            )
+            title = entry.get("title")
+
+            if not video_record.get(title):
+                try:
+                    id = entry.get("id")
+                    watch_url = f"https://www.youtube.com/watch?v={id}"
+                    yt_to_spotify = ProcessYoutubeLink()
+                    metadata = yt_to_spotify.youtube_search.process_youtube_url(
+                        watch_url, True, default_cover
+                    )
+                    video_record[title] = metadata
+
+                    if (index % 10 == 0) or (index == (playlist_len - 1)):
+                        storage.save()
+
+                except SongNotFound:
+                    continue
+            else:
+                continue
+
+            artist_playlist = list(video_record.values())
+            storage.new(artist, artist_playlist, query_type="artist")
+
+            storage.save()
+
+            return artist_playlist
 
     return storage.get(artist, "artist", artist_search)
 

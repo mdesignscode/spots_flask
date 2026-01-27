@@ -1,19 +1,17 @@
-from os import path
 from hashlib import md5
-from typing import Any, Literal, cast, overload
-from models.metadata import Metadata
-from yt_dlp import YoutubeDL
+from logging import error, info
 from math import ceil
-from engine import storage
-from logging import INFO, basicConfig, error, info
 from models.errors import SongNotFound
+from models.metadata import Metadata
 from models.yt_video_info import YTVideoInfo
-from tenacity import retry, stop_after_delay
+from os import path
 from services.add_to_history_service import AddToHistoryService
 from services.video_to_mp3_service import VideoToMp3Service
-
-
-basicConfig(level=INFO)
+from tenacity import stop_after_delay
+from engine.retry import retry
+from typing import Any, Literal, cast, overload
+from yt_dlp import YoutubeDL
+from yt_dlp.utils import ExtractorError, DownloadError
 
 
 class YtDlpClient:
@@ -40,6 +38,10 @@ class YtDlpClient:
 
         Sets up youtube clients.
         """
+        from engine import storage
+
+        self._storage = storage
+
         self.options = (
             {
                 "js_runtimes": {"node": {}},
@@ -71,10 +73,10 @@ class YtDlpClient:
         query: str,
         first_result_only: Literal[False],
         is_general_search: bool = True,
-    ) -> dict[str, Any]: ...
+    ) -> list[YTVideoInfo]: ...
 
     def search(
-            self, query: str, first_result_only: bool = True, is_general_search: bool = True
+        self, query: str, first_result_only: bool = True, is_general_search: bool = True
     ):
         """
         Extracts partial data from a YouTube search result.
@@ -85,48 +87,90 @@ class YtDlpClient:
             is_general_search (bool, Optional): True for search term, False for urls. Defaults to True.
 
         Returns:
-            YTVideoInfo: The extracted info
+            YTVideoInfo | list[YTVideoInfo]: The extracted info
 
         Raises:
             SongNotFound: If no result is found.
         """
-        from engine import storage
+        search_term = f"ytsearch5:{query}" if is_general_search else query
 
         if not first_result_only:
-            return self.ydl.extract_info(query, download=False)
-
-        def yt_search():
-            from engine.file_storage import NOT_FOUND
-            search_term = f"ytsearch:{query}" if is_general_search else query
+            info("Extracting list of videos")
             results = self.ydl.extract_info(search_term, download=False)
-
             try:
-                first_entry = results["entries"][0]
-            except:
-                info(f"[Not found] {query}")
-                storage.new(query, NOT_FOUND, "ytdl")
+                entries = results["entries"]
+                return [self._create_yt_video_obj(entry) for entry in entries]
+            except (KeyError, IndexError):
                 raise SongNotFound(query)
 
-            from services.youtube_matcher import YoutubeMatcher
-            matcher = YoutubeMatcher()
-            title = matcher.remove_odd_keywords(first_entry.get("title", "Unknown"))
-            uploader = matcher.remove_odd_keywords(first_entry.get("uploader", "Unknown"))
-            audio_ext = first_entry.get("audio_ext", "webm")
-            id = first_entry.get("id")
-            filesize = self.get_filesize_mb(first_entry)
 
-            return YTVideoInfo(
-                id=id,
-                title=title,
-                audio_ext=audio_ext,
-                uploader=uploader,
-                filesize=filesize,
-            )
-
-        return storage.get(
+        return self._storage.get(
             query,
             "ytdl",
-            yt_search,
+            lambda: self._search_on_yt(query, search_term, is_general_search),
+        )
+
+    def _search_on_yt(self, cache_query: str, search_term: str, is_general_search: bool) -> YTVideoInfo:
+        """
+        Searches for a title on YouTube
+
+        Args:
+            cache_query (str): the query to add an unavailable video.
+            search_term (str): the title to be searched for.
+            is_general_search (bool, Optional): True for search term, False for urls. Defaults to True.
+
+        Returns:
+            YTVideoInfo
+
+        Raises:
+            SongNotFound: if a song is unavailable.
+        """
+        from engine.file_storage import NOT_FOUND
+
+        try:
+            results = self.ydl.extract_info(search_term, download=False)
+        except (ExtractorError, DownloadError):
+            raise SongNotFound(search_term)
+
+        try:
+            first_entry = results if not is_general_search else results["entries"][0]
+        except (KeyError, IndexError):
+            info(f"[Not found] {cache_query}")
+            self._storage.new(
+                cache_query.replace(" Audio", ""), NOT_FOUND, query_type="ytdl"
+            )
+            raise SongNotFound(cache_query)
+
+        video_info = self._create_yt_video_obj(first_entry)
+        if not is_general_search:
+            self._storage.new(cache_query, video_info, query_type="ytdl")
+        return video_info
+
+    def _create_yt_video_obj(self, entry: dict[str, Any]) -> YTVideoInfo:
+        """
+        Creates a YTVideoInfo object
+
+        Args:
+            entry: the search result entry
+
+        Returns:
+            YTVideoInfo
+        """
+        from services.youtube_matcher import YoutubeMatcher
+
+        matcher = YoutubeMatcher()
+        title = matcher.remove_odd_keywords(entry.get("title", "Unknown"))
+        uploader = matcher.remove_odd_keywords(entry.get("uploader", "Unknown"))
+        audio_ext = entry.get("audio_ext", "webm")
+        id = cast(str, entry.get("id"))
+        filesize = self.get_filesize_mb(entry)
+
+        return YTVideoInfo(
+            id=id,
+            title=title,
+            audio_ext=audio_ext,
+            uploader=uploader,
+            filesize=filesize,
         )
 
     def get_filesize_mb(self, info: dict) -> int:

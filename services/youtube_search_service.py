@@ -1,19 +1,15 @@
 from __future__ import unicode_literals
 from os import getenv
 from html import unescape
-from logging import basicConfig, error, ERROR, info, INFO
+from logging import error, info
 from flask import url_for
 from models.errors import SongNotFound
 from models.metadata import Metadata
-from tenacity import retry, stop_after_delay
-from logging import error, info
-from models.sentinel import Sentinel
 from models.yt_video_info import YTVideoInfo
 from services.youtube_matcher import YoutubeMatcher
-from tenacity import retry, stop_after_delay
 from services.ytdlp_client import YtDlpClient
-
-basicConfig(level=INFO)
+from tenacity import stop_after_delay
+from engine.retry import retry
 
 
 class YoutubeSearchService:
@@ -51,9 +47,7 @@ class YoutubeSearchService:
 
         self._storage = storage
 
-    def search_best_match(
-        self, metadata: Metadata, search_title: str = ""
-    ) -> str:
+    def search_best_match(self, metadata: Metadata, search_title: str = "") -> str:
         """
         Searches for the best title matched result on YouTube.
 
@@ -69,6 +63,7 @@ class YoutubeSearchService:
         """
 
         from engine.file_storage import NOT_FOUND
+
         def save_match(entry):
             video_info = YTVideoInfo(
                 id=entry.id,
@@ -79,9 +74,9 @@ class YoutubeSearchService:
             )
             watch_url = base_url + video_info.id
             # cache search query
-            self._storage.new(original_title, video_info, "ytdl")
+            self._storage.new(original_title, video_info, query_type="ytdl")
             # and youtube url
-            self._storage.new(watch_url, video_info, "ytdl")
+            self._storage.new(watch_url, video_info, query_type="ytdl")
 
             return watch_url
 
@@ -108,6 +103,7 @@ class YoutubeSearchService:
             return save_match(video_info)
         else:
             info("Searching for video version")
+            print(f"\n\nAudio not match:\nYT title: {yt_title}\nPattern: {pattern}\n\n")
 
             # search for video version
             video_pattern = search_query.replace(" Audio", "")
@@ -117,8 +113,11 @@ class YoutubeSearchService:
             video_titles_match = self.matcher.match_titles(video_pattern, yt_title)
 
             if not video_titles_match:
+                print(
+                    f"\n\nVideo not match either:\nYT title: {yt_title}\nPattern: {pattern}\n\n"
+                )
                 info(f"No match found for: {search_query}")
-                self._storage.new(original_title, NOT_FOUND, "ytdl")
+                self._storage.new(original_title, NOT_FOUND, query_type="ytdl")
                 raise SongNotFound(search_query)
             else:
                 return save_match(video_info)
@@ -136,7 +135,7 @@ class YoutubeSearchService:
         Raises:
             InvalidURL: if invalid YouTube video url provided
         """
-        search_response = self.ytdlp.search(youtube_url, True)
+        search_response = self.ytdlp.search(youtube_url, True, is_general_search=False)
 
         result_title = search_response.title
 
@@ -146,7 +145,6 @@ class YoutubeSearchService:
         except TypeError:
             youtube_video_title = result_title
         except Exception as e:
-            basicConfig(level=ERROR)
             error(f"Unhandled error occurred while retrieving title: {e}")
             raise e
 
@@ -164,6 +162,8 @@ class YoutubeSearchService:
         self._storage.update_ytdl(youtube_url, uploader=artist, title=title)
 
         video_info = artist, title, search_response.filesize
+
+        print(f"Video title: {youtube_video_title}\nArtist: {artist}\nTitle: {title}\n\n")
         return video_info
 
     def process_spotify_title(self, metadata: Metadata) -> tuple[str, str, float]:
@@ -218,9 +218,9 @@ class YoutubeSearchService:
         from models.spotify_worker import SpotifyWorker
 
         spotify = SpotifyWorker()
-        metadata = spotify.search_track(search_title, single_only)
-
-        if not metadata:
+        try:
+            metadata = spotify.search_track(search_title, single_only)
+        except SongNotFound:
             info(f"No spotify results for {search_title}")
             return Metadata(title, artist, youtube_url, cover)
 

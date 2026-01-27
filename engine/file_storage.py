@@ -2,7 +2,7 @@
 
 from json import load, dump
 from json.decoder import JSONDecodeError
-from typing import Any, Callable, Literal, Optional, TypedDict, cast, overload
+from typing import Any, Callable, Literal, Optional, TypedDict, Sequence, overload
 from models.errors import SongNotFound
 from models.metadata import Metadata
 from models.sentinel import Sentinel
@@ -15,35 +15,42 @@ from logging import info, INFO, basicConfig
 basicConfig(level=INFO)
 
 TSpotifyCache = dict[str, Metadata | Sentinel]
-TArtistCache = dict[str, list[Metadata | Sentinel]]
+TArtistCache = dict[str, Sequence[Metadata | Sentinel]]
 
 TSerializedRecord = dict[str, dict[str, Any]]
 
-MediaProviders = Literal["spotify", "artist", "ytdl"]
+MediaProviders = Literal["spotify", "artist", "ytdl", "yt_likes", "spotify_likes"]
 
 NOT_FOUND = Sentinel()
+
 
 class CacheOptions(TypedDict):
     spotify: TSpotifyCache
     artist: TArtistCache
     ytdl: dict[str, Any]
+    yt_likes: dict[str, YTVideoInfo | Sentinel]
+    spotify_likes: TSpotifyCache
 
 
 class SerializedCacheOptions(TypedDict):
     spotify: dict[str, TSerializedRecord]
     artist: dict[str, list[dict[str, Any]]]
     ytdl: dict[str, YTVideoInfo]
+    yt_likes: dict[str, TSerializedRecord]
+    spotify_likes: dict[str, TSerializedRecord]
 
 
 class FileStorage:
     """A class for caching search results in a JSON file."""
 
     def __init__(self):
-        self.__file_path = ".metadata.json"
+        self.__file_path = "./Music/.metadata.json"
         self.__objects: CacheOptions = {
             "artist": {},
             "spotify": {},
             "ytdl": {},
+            "yt_likes": {},
+            "spotify_likes": {},
         }
         self._dirty = False
 
@@ -70,29 +77,70 @@ class FileStorage:
         """Returns the stored objects."""
         return self.__objects
 
-    def new(self, query: str, result, query_type: MediaProviders) -> None:
-        """Adds a new search result to the cache.
+    @overload
+    def new(
+        self,
+        query: str,
+        result: YTVideoInfo | Sentinel,
+        query_type: Literal["yt_likes"],
+    ) -> None: ...
 
-        Args:
-            query (str): The search query.
-            result (Metadata | Tuple[str, dict, int]): The search result.
-            query_type (str): `spotify` | `youtube` | `artist` | `ytdl`.
-        """
+    @overload
+    def new(
+        self,
+        query: str,
+        result: Metadata | Sentinel,
+        query_type: Literal["spotify"],
+    ) -> None: ...
+
+    @overload
+    def new(
+        self,
+        query: str,
+        result: Metadata | Sentinel,
+        query_type: Literal["spotify_likes"],
+    ) -> None: ...
+
+    @overload
+    def new(
+        self,
+        query: str,
+        result: Sequence[Metadata | Sentinel],
+        query_type: Literal["artist"],
+    ) -> None: ...
+
+    @overload
+    def new(
+        self,
+        query: str,
+        result: YTVideoInfo | Sentinel,
+        query_type: Literal["ytdl"],
+    ) -> None: ...
+
+    def new(
+        self,
+        query: str,
+        result,
+        query_type: MediaProviders,
+    ) -> None:
         query = query.replace(" Audio", "")
-        if not self.__objects[query_type].get(query):
-            self._dirty = True
-        else:
+
+        if self.__objects[query_type].get(query):
             return
+
+        self._dirty = True
 
         match query_type:
             case "spotify":
                 self.__objects["spotify"][query] = result
-
             case "artist":
-                self.__objects["artist"][query] = result
-
+                self.__objects["artist"][query] = list(self.__objects["artist"][query]) + [result]
             case "ytdl":
                 self.__objects["ytdl"][query] = result
+            case "spotify_likes":
+                self.__objects["spotify_likes"][query] = result
+            case "yt_likes":
+                self.__objects["yt_likes"][query] = result
 
     def save(self) -> None:
         """Serializes and saves the cache to the JSON file safely."""
@@ -109,6 +157,12 @@ class FileStorage:
             },
             "ytdl": {
                 key: value.__dict__ for key, value in self.__objects["ytdl"].items()
+            },
+            "yt_likes": {
+                key: value.__dict__ for key, value in self.__objects["yt_likes"].items()
+            },
+            "spotify_likes": {
+                key: value.__dict__ for key, value in self.__objects["spotify_likes"].items()
             },
         }
 
@@ -129,27 +183,68 @@ class FileStorage:
 
     def reload(self) -> None:
         """Deserializes and reloads the cache from the JSON file."""
+        print("reloading objects")
         try:
             with open(self.__file_path, "r") as file:
                 loaded_objects = load(file)
-                self.__objects["spotify"] = {
-                    key: Metadata(**value) if value != NOT_FOUND.__dict__ else NOT_FOUND
-                    for key, value in loaded_objects["spotify"].items()
-                }
 
-                self.__objects["artist"] = {
-                    artist: [Metadata(**item) if item != NOT_FOUND.__dict__ else NOT_FOUND for item in playlist]
-                    for artist, playlist in loaded_objects["artist"].items()
-                }
-                self.__objects["ytdl"] = {
-                    key: YTVideoInfo(**value) if value != NOT_FOUND.__dict__ else NOT_FOUND
-                    for key, value in loaded_objects["ytdl"].items()
-                }
+                if "spotify" in loaded_objects:
+                    self.__objects["spotify"] = {
+                        key: Metadata(**value) if value != NOT_FOUND.__dict__ else NOT_FOUND
+                        for key, value in loaded_objects["spotify"].items()
+                    }
+                else:
+                    self.__objects["spotify"] = {}
+
+                if "spotify_likes" in loaded_objects:
+                    self.__objects["spotify_likes"] = {
+                        key: Metadata(**value) if value != NOT_FOUND.__dict__ else NOT_FOUND
+                        for key, value in loaded_objects["spotify_likes"].items()
+                    }
+                else:
+                    self.__objects["spotify_likes"] = {}
+
+                if "artist" in loaded_objects:
+                    self.__objects["artist"] = {
+                        artist: [
+                            Metadata(**item) if item != NOT_FOUND.__dict__ else NOT_FOUND
+                            for item in playlist
+                        ]
+                        for artist, playlist in loaded_objects["artist"].items()
+                    }
+                else:
+                    self.__objects["artist"] = {}
+
+                if "ytdl" in loaded_objects:
+                    self.__objects["ytdl"] = {
+                        key: (
+                            YTVideoInfo(**value)
+                            if value != NOT_FOUND.__dict__
+                            else NOT_FOUND
+                        )
+                        for key, value in loaded_objects["ytdl"].items()
+                    }
+                else:
+                    self.__objects["ytdl"] = {}
+
+                if "yt_likes" in loaded_objects:
+                    self.__objects["yt_likes"] = {
+                        key: (
+                            YTVideoInfo(**value)
+                            if value != NOT_FOUND.__dict__
+                            else NOT_FOUND
+                        )
+                        for key, value in loaded_objects["yt_likes"].items()
+                    }
+                else:
+                    self.__objects["yt_likes"] = {}
         except (FileNotFoundError, JSONDecodeError):
             self.__objects = {
                 "spotify": {},
                 "artist": {},
                 "ytdl": {},
+                "yt_likes": {},
+                "spotify_likes": {},
             }
 
     @overload
@@ -158,47 +253,63 @@ class FileStorage:
         query: str,
         query_type: Literal["spotify"],
         fetch_data: Callable[[], Metadata],
+        *,
+        alt_query: str = "",
     ) -> Metadata: ...
+
     @overload
     def get(
         self,
         query: str,
         query_type: Literal["artist"],
         fetch_data: Callable[[], list[Metadata]],
+        *,
+        alt_query: str = "",
     ) -> list[Metadata]: ...
+
     @overload
     def get(
         self,
         query: str,
         query_type: Literal["ytdl"],
         fetch_data: Callable[[], YTVideoInfo],
+        *,
+        alt_query: str = "",
     ) -> YTVideoInfo: ...
 
+    @overload
     def get(
-            self, query: str, query_type: MediaProviders, fetch_data: Callable[[], Any], alt_query: str = ""
+        self,
+        query: str,
+        query_type: Literal["yt_likes"],
+    ) -> bool: ...
+
+    def get(
+        self,
+        query: str,
+        query_type: MediaProviders,
+        fetch_data: Callable[[], Any] | None = None,
+        *,
+        alt_query: str = "",
     ):
-        """Gets the search result for a given query and query type.
-
-        Args:
-            query (str): The search query.
-            query_type (str): `spotify` or `youtube`.
-            fetch_data (Callable[[], Any]): A callback that makes a network request for new data.
-            alt_query (str, Optional): An alternative query to lookup. Defaults to "".
-
-        Returns:
-            The search result for the given query and query type.
-        """
         query = query.replace(" Audio", "")
-        cache = self.__objects[query_type].get(query, None) or self.__objects[query_type].get(alt_query, None)
-        print(cache)
-        print(f"Query: {query}\n\n")
+
+        if query_type == "yt_likes":
+            return query in self.__objects["yt_likes"]
+
+        if fetch_data is None:
+            raise TypeError(f"`fetch_data` is required for query_type '{query_type}'")
+
+        cache = self.__objects[query_type].get(query) or self.__objects[query_type].get(
+            alt_query
+        )
+
         if isinstance(cache, Sentinel):
             info(f"[Cache Miss] {query}")
             raise SongNotFound(query)
-
         elif not cache:
+            print("Performing new search")
             return fetch_data()
-
         else:
             info(f"[Cache] {query}")
             return cache
