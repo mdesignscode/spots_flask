@@ -7,6 +7,7 @@ def is_retryable_exception(exc: BaseException) -> bool:
     # Only retry transient failures
     return not isinstance(exc, SongNotFound)
 
+
 def retry(*args, **kwargs):
     """
     Project-wide retry decorator.
@@ -30,4 +31,3 @@ def retry(*args, **kwargs):
         reraise=True,
         **kwargs,
     )
-

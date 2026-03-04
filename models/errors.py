@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 """Custom error classes"""
 
 
@@ -32,3 +31,18 @@ class VersionSkipped(Exception):
     def __init__(self, query: str):
         self.message = f"[Blacklisted] {query} skipped"
         super().__init__(self.message)
+
+class YouTubeQuotaExceeded(Exception):
+    """The YouTube API quota has been exceeded"""
+
+    def __init__(self):
+        self.message = "The YouTube API quota has been exceeded"
+        super().__init__(self.message)
+
+class EmptySpotifyLikes(Exception):
+    """The YouTube API quota has been exceeded"""
+
+    def __init__(self):
+        self.message = "The YouTube API quota has been exceeded"
+        super().__init__(self.message)
+

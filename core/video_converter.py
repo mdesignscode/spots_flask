@@ -6,10 +6,9 @@ from mutagen.id3._frames import APIC, TIT2, TPE1, TRCK, TALB, USLT, TDRL
 from mutagen.mp3 import MP3
 from os import remove
 from requests import get
-from services.add_to_history_service import AddToHistoryService
 
 
-class VideoToMp3Service:
+class VideoConverter:
     """
     Service responsible for converting audio files to MP3 format
     and updating their metadata.
@@ -35,9 +34,8 @@ class VideoToMp3Service:
 
         Sets up the download history service.
         """
-        self.add_to_history = AddToHistoryService
 
-    def update_metadata(self, audio_path: str, metadata: Metadata) -> None:
+    def update_metadata(self, *, audio_path: str, metadata: Metadata) -> None:
         """
         Update the ID3 metadata of an MP3 file.
 
@@ -113,11 +111,10 @@ class VideoToMp3Service:
 
     def convert_to_mp3(
         self,
+        *,
         old_file: str,
         new_file: str,
-        song_title: str,
-        metadata: Metadata,
-    ) -> None:
+    ) -> bool:
         """
         Convert an audio file to MP3 format and update its metadata.
 
@@ -134,7 +131,7 @@ class VideoToMp3Service:
             metadata (Metadata): Metadata to apply to the converted MP3 file.
 
         Returns:
-            None
+            bool: True indicates a succesful download
         """
         try:
             # Load the audio clip
@@ -147,12 +144,9 @@ class VideoToMp3Service:
             clip.close()
             remove(old_file)
 
-            # Update metadata
-            self.update_metadata(new_file, metadata)
+            return True
 
         except FileNotFoundError:
             error(f"{old_file} not found...")
-            return
+            return False
 
-        # Add successful download to history
-        self.add_to_history.add_to_download_history(song_title, True)

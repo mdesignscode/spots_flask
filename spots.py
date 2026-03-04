@@ -1,10 +1,12 @@
 #!/usr/bin/python3
 """Spots Web App"""
 
+from engine.persistence_model import storage
 from logging import basicConfig, error, info, INFO
 from os import getenv, makedirs
 from requests import get
 from server import app
+from clients.spotify import SpotifyClient
 
 basicConfig(level=INFO)
 
@@ -18,16 +20,14 @@ if __name__ == "__main__":
         quit()
 
     # sign user in
-    from models import spotify_client
+    spotify_client = SpotifyClient()
 
     if getenv("username"):
         spotify_client.signin()
 
     makedirs("./Music", exist_ok=True)
 
-    from engine import storage
     storage.reload()
-    print(f"Songs liked on YT already: {len(storage.all()['yt_likes'])}")
 
     port = getenv("flask_port", "5000")
 

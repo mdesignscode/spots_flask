@@ -1,82 +1,55 @@
-"""Spots Web App"""
-
-from download_urls import convert_url, search_on_youtube, search_artist_on_yt
+from bootstrap.container import Container
+from clients.secrets_manager import SecretsManager
+from engine.persistence_model import storage
+from engine.retry import retry
 from flask import Flask, request, url_for, jsonify
 from flask_cors import CORS
 from logging import error, info
-from models.errors import SongNotFound
+from models.errors import SongNotFound, YouTubeQuotaExceeded
+from models.media_resource import MediaResourceSingle
 from models.metadata import Metadata
-from models.process_youtube_link import ProcessYoutubeLink
-from os import getenv
-from requests.exceptions import ConnectionError
+from models.playlist_info import PlaylistInfo
+from models.yt_video_info import YTVideoInfo
+from requests.models import InvalidURL
 from server.download_music import blueprint
-from services.youtube_search_service import YoutubeSearchService
-from typing import Dict, cast
 from tenacity import stop_after_delay
-from engine.retry import retry
-from urllib3.exceptions import NameResolutionError
+from typing import Dict, Literal, TypedDict, cast
 
 
 app = Flask(__name__, static_url_path="/static")
 app.register_blueprint(blueprint)
 CORS(app)
 
-@app.route("/update-yt-likes")
-def update_yt_likes():
-    from engine import storage
-    from json import load, dumps
-    from models.spotify_worker import SpotifyWorker
+bootstrapper = Container()
+bootstrapper.setup_container()
 
-    sp = SpotifyWorker()
-    favs = sp.user_saved_tracks()
-    print(favs)
 
-    # def open_file(path = "./Music/.metadata.json"):
-    #     with open(path, "r") as f:
-    #         return load(f)
-    #
-    # def process_ids(ids):
-    #     from services.youtube_search_service import YoutubeSearchService
-    #     p_len = len(ids)
-    #
-    #     searcher = YoutubeSearchService()
-    #     yt_titles = []
-    #
-    #     for index, id in enumerate(ids):
-    #         print(f"**Processing id {index + 1}/{p_len}")
-    #         watch_url = f"https://www.youtube.com/watch?v={id}"
-    #         if storage.get(watch_url, "yt_likes"):
-    #             print("Already processed")
-    #             continue
-    #
-    #         try:
-    #             metadata = searcher.process_youtube_url(watch_url)
-    #         except SongNotFound:
-    #             continue
-    #
-    #         title = f"{metadata.artist} - {metadata.title}"
-    #         yt_titles.append(title)
-    #
-    #         storage.new(title, query_type="yt_likes")
-    #         storage.new(watch_url, query_type="yt_likes")
-    #         if (index % 10 == 0) or (index == (p_len - 1)):
-    #             storage.save()
-    #
-    #     return yt_titles
-    #
-    # def main():
-    #     ids = open_file("liked_songs.json")
-    #     process_ids(ids)
-    #
-    # main()
-    return "updated likes"
+class PlaylistResponse(TypedDict):
+    playlist_info: PlaylistInfo
+    resource: Literal["playlist"]
+    action: str
+
+
+class ArtistResponse(TypedDict):
+    name: str
+    cover: str
+    playlist_info: list[PlaylistInfo]
+    resource: Literal["playlist"]
+    action: str
+
+
+class SingleResponse(TypedDict):
+    video_info: YTVideoInfo
+    metadata: Metadata
+    resource: Literal["single"]
+    youtube_title: str
+    action: str
+
 
 @retry(stop=stop_after_delay(max_delay=30))
 @app.route("/get-user")
-def home():
-    from models import spotify_client
-
-    username = spotify_client.get_user()
+def get_user():
+    username = bootstrapper.clients.spotify.get_user()
 
     return jsonify({"username": username})
 
@@ -89,11 +62,12 @@ def status():
 @retry(stop=stop_after_delay(max_delay=120))
 @app.route("/transfer_likes", methods=["POST"])
 def transfer_likes():
-    youtube = ProcessYoutubeLink()
     try:
-        youtube.transfer_spotify_likes_to_yt()
+        bootstrapper.app.youtube_user_playlist.transfer_spotify_likes_to_yt()
+    except YouTubeQuotaExceeded:
+        return jsonify({"message": "Quota exceeded"})
     except SongNotFound:
-        return jsonify({"message": "No Spotify likes"})
+        return jsonify({"message": "No Spotify likes"}), 500
 
     return "Added to likes"
 
@@ -101,17 +75,16 @@ def transfer_likes():
 @retry(stop=stop_after_delay(max_delay=120))
 @app.route("/user_playlist/<action>", methods=["POST"])
 def user_playlist(action: str):
-    from models import spotify_client
-
     # Access form data
     json_dict = cast(Dict[str, str], request.json)
     tracks = json_dict["tracks"]
 
     response = "\n".join(f"<p>{track[0]}</p>" for track in tracks)
 
-    response += f"\n<p>Removed from {getenv('username')} playlist"
+    username = SecretsManager.read(key="username")
+    response += f"\n<p>Removed from {username} playlist"
 
-    spotify_client.modify_saved_tracks_playlist(
+    bootstrapper.app.spotify_playlist_modify.modify_saved_tracks_playlist(
         action, ",".join([track[1] for track in tracks])
     )
 
@@ -121,13 +94,8 @@ def user_playlist(action: str):
 # @retry(stop=stop_after_delay(max_delay=60))
 @app.route("/query/<action>", methods=["GET"])
 def query(action: str):
-    from models import spotify_client
-    from engine import storage
-
     query = request.args.get("q")
     essentials_playlist = request.args.get("essentials_playlist")
-    single_arg = request.args.get("single")
-    single = single_arg == "true"
     username = request.args.get("username")
 
     if not query:
@@ -138,185 +106,144 @@ def query(action: str):
 
     info(f"Performing {action} on {query}...")
 
-    # catch network error
-    try:
-        # validate token
-        spotify_client.get_user()
+    match action:
+        # ---- search for a title on spotify ---- #
+        case "search":
+            # search on spotify
+            try:
+                spotify_result = bootstrapper.domain.spotify_search.search_track(query)
+            except SongNotFound as e:
+                return jsonify({"error": str(e)}), 500
 
-        match action:
-            # ---- search for a title on spotify ---- #
-            case "search":
-                try:
-                    result = spotify_client.search_track(query, single)
-                    if not result:
-                        return jsonify({"message": "No search results"})
-                    info(f"Spotify search: {result[0].title} by {result[0].artist}")
+            except Exception as e:
+                # catch edge case for future handling
+                error(f"Spotify search error: {e}")
+                return jsonify({"error": str(e)}), 503
 
-                except SongNotFound as e:
-                    return jsonify({"error": str(e)})
+            metadata = spotify_result
 
-                except Exception as e:
-                    # catch edge case for future handling
-                    error(f"Spotify search error: {e}")
-                    raise e
+            # search on youtube
+            spotify_title = metadata.full_title
 
-                if not result:
-                    return jsonify({"error": f"No results for {query}"})
-
-                metadata = result[0]
-
-                # search for title on youtube
-                youtube = YoutubeSearchService()
-                artist, title, filesize = youtube.process_spotify_title(metadata)
-                youtube_title = f"{artist} - {title}"
-
-                # search for recommended tracks on youtube
-                recommended_tracks = []
-                if result[1]:
-                    recommended_tracks = search_on_youtube(result[1])
-
-                storage.save()
-
-                return jsonify(
-                    {
-                        "data": metadata.__dict__,
-                        "size": filesize,
-                        "resource": "single",
-                        "title": youtube_title,
-                        "action": action,
-                        "recommended_tracks": recommended_tracks,
-                    }
+            try:
+                youtube_result = bootstrapper.domain.youtube_search.video_search(
+                    query=spotify_title, is_general_search=True
                 )
-            # ---- download url ----
-            case "download":
-                # process the url
-                converter = convert_url(query, single)
+            except SongNotFound:
+                return jsonify({"message": f"{spotify_title} not available"}), 500
 
-                if not converter:
-                    return jsonify({"error": f"No results for {query}"}), 500
+            # find best match
+            # cached result will be the only item in list
+            if youtube_result.is_cached:
+                best_match = youtube_result.result[0]
+            else:
+                best_match = None
 
-                match converter["resource_type"]:
-                    # --- handle single ---
-                    case "single":
-                        # handle single only
-                        metadata = cast(Metadata, converter["metadata"]["single"])
+                for result in youtube_result.result:
+                    # clean uploader and title first
+                    cleaned = bootstrapper.core.extractor.extract_artist_and_title(
+                        video_info=result, metadata=metadata
+                    )
+                    result.full_title = cleaned
 
-                        # TODO: search for recommended tracks on youtube
-                        recommended_tracks = []
-                        # if not single:
-                        #    recommended_tracks = search_on_youtube(results[1])
-
-                        return jsonify(
-                            {
-                                "data": metadata.__dict__,
-                                "resource": "single",
-                                "title": converter["youtube_title"],
-                                "action": action,
-                                "recommended_tracks": recommended_tracks,
-                                "size": converter["filesize"],
-                            }
-                        )
-
-                    # ---- handle playlist ----
-                    case "playlist":
-                        playlist_info = converter["playlist_info"]
-                        album_data = playlist_info["album_data"]
-                        title = album_data["name"]
-                        return jsonify(
-                            {
-                                "playlist": playlist_info["playlist"],
-                                "data": album_data,
-                                "resource": "playlist",
-                                "title": title,
-                                "action": action,
-                            }
-                        )
-
-            case "artist":
-                result = spotify_client.artist_albums(query, essentials_playlist)
-
-                if not result:
-                    return jsonify({"error": f"No results for {query}"}), 500
-
-                artist_name = result[1]["name"]
-                artist_cover = result[1]["cover"]
-
-                albums = []
-
-                # search for artist on YT
-                yt_playlist = search_artist_on_yt(artist_name, artist_cover)
-
-                # record to avoid duplicates
-                table = {}
-
-                # combine scraped playlist and youtube search
-                scraped_playlist = result[0][-1]
-                artist_playlist = scraped_playlist[0] + yt_playlist
-                artist_playlist_details = scraped_playlist[1]
-
-                # add combined playlist to albums list
-                all_albums = result[0][:-1]
-                all_albums.append((artist_playlist, artist_playlist_details))
-
-                for album in all_albums:
-                    playlist = []
-                    spotify_playlist = album[0]
-                    yt_list = search_on_youtube(spotify_playlist)
-                    for yt_result in yt_list:
-                        yt_title = yt_result[0]
-
-                        # see if song has been recorded
-                        in_table = table.get(yt_title)
-
-                        if not in_table:
-                            table[yt_title] = True
-
-                            playlist.append(yt_result)
-
-                    albums.append({"album": album[1], "playlist": playlist})
-
-                # filter out albums with no songs
-                albums = list(filter(lambda x: len(x["playlist"]), albums))
-
-                return jsonify(
-                    {
-                        "data": result[1],
-                        "resource": "artist",
-                        "albums": albums,
-                        "action": action,
-                    }
-                )
-
-            case "saved_tracks":
-                saved_tracks = spotify_client.user_saved_tracks()
-                storage.save()
-
-                if saved_tracks:
-                    cover = url_for("static", filename="avatar.jpg")
-                    data = {"cover": cover, "name": username}
-
-                    return jsonify(
-                        {
-                            "data": data,
-                            "resource": "saved_tracks",
-                            "playlist": search_on_youtube(saved_tracks),
-                            "action": action,
-                        }
+                    tracks_match = bootstrapper.core.matcher.match_tracks(
+                        video_info=result, metadata=metadata
                     )
 
-                else:
-                    return jsonify({"error": "No saved tracks found"}), 500
+                    if tracks_match:
+                        best_match = result
+                        break
 
-            case _:
-                return (
-                    jsonify(
-                        {
-                            "error": "Only `Download` `Artist, or `Search` actions allowed"
-                        }
-                    ),
-                    400,
+            if not best_match:
+                return jsonify({"message": f"{spotify_title} not available"}), 500
+
+            youtube_title = best_match.full_title
+
+            search_response: SingleResponse = {
+                "video_info": best_match,
+                "metadata": metadata,
+                "resource": "single",
+                "youtube_title": youtube_title,
+                "action": action,
+            }
+
+            storage.new(query=youtube_title, result=best_match, query_type="ytdl")
+            storage.save()
+
+            return jsonify(search_response)
+        # ---- download url ----
+        case "download":
+            try:
+                resolved_media = bootstrapper.app.resolver.resolve(url=query)
+            except InvalidURL:
+                return jsonify({"error": f"No results for {query}"}), 500
+
+            match resolved_media.resource_type:
+                # --- handle single ---
+                case "single":
+                    # handle single only
+                    resolved_media = cast(MediaResourceSingle, resolved_media)
+                    if not resolved_media.metadata or not resolved_media.video_info:
+                        return jsonify({"error": f"No results for {query}"}), 500
+
+                    download_response: SingleResponse = {
+                        "video_info": resolved_media.video_info,
+                        "metadata": resolved_media.metadata,
+                        "resource": "single",
+                        "youtube_title": resolved_media.video_info.full_title,
+                        "action": action,
+                    }
+
+                    return jsonify(download_response)
+
+                # ---- handle playlist ----
+                case "playlist":
+                    playlist_response: PlaylistResponse = {
+                        "action": action,
+                        "resource": "playlist",
+                        "playlist_info": resolved_media.playlist_info,
+                    }
+                    return jsonify(playlist_response)
+
+        case "artist":
+            artist_result = bootstrapper.app.spotify_playlist_compiler.artist_albums(
+                artist=query, essentials_playlist=essentials_playlist
+            )
+
+            if not artist_result:
+                return jsonify({"error": f"No results for {query}"}), 500
+
+            artist_response: ArtistResponse = {
+                "playlist_info": artist_result.playlist,
+                "resource": "playlist",
+                "action": action,
+                "name": artist_result.name,
+                "cover": artist_result.cover,
+            }
+
+            return jsonify(artist_response)
+
+        case "saved_tracks":
+            try:
+                saved_tracks = (
+                    bootstrapper.app.spotify_playlist_compiler.user_saved_tracks()
                 )
-    except (ConnectionError, NameResolutionError) as e:
-        storage.save()
-        return jsonify({"error": str(e)}), 500
+            except SongNotFound:
+                return jsonify({"error": "No saved tracks found"}), 500
+
+            playlist_response = {
+                "action": action,
+                "resource": "playlist",
+                "playlist_info": saved_tracks,
+            }
+
+            return jsonify(playlist_response)
+
+        case _:
+            return (
+                jsonify(
+                    {"error": "Only `Download` `Artist, or `Search` actions allowed"}
+                ),
+                400,
+            )
 

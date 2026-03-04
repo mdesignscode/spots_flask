@@ -56,15 +56,3 @@ class YouTubeApiClient:
 
         return build("youtube", "v3", credentials=creds)
 
-    def like_video(self, video_id: str):
-        """
-        Adds a youtube video to the users liked library
-
-        Args:
-            video_id (str): The id of the video.
-
-        Returns:
-            None
-        """
-        self.service.videos().rate(id=video_id, rating="like").execute()
-

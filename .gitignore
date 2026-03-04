@@ -8,3 +8,6 @@ tests/test_download_urls.py
 q.txt
 cookies.txt
 /.metadata.json
+
+yt_cache
+
