@@ -2,15 +2,19 @@ from bootstrap.container import Container
 from clients.secrets_manager import SecretsManager
 from engine.persistence_model import storage
 from engine.retry import retry
-from flask import Flask, request, url_for, jsonify
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from logging import error, info
-from models.errors import SongNotFound, YouTubeQuotaExceeded
-from models.media_resource import MediaResourceSingle
-from models.metadata import Metadata
-from models.playlist_info import PlaylistInfo
-from models.yt_video_info import YTVideoInfo
-from requests.models import InvalidURL
+from models import (
+    SongNotFound,
+    YouTubeQuotaExceeded,
+    MediaResourceSingle,
+    Metadata,
+    YTVideoInfo,
+    InvalidURL,
+    PlaylistInfo,
+    MediaResourcePlaylist,
+)
 from server.download_music import blueprint
 from tenacity import stop_after_delay
 from typing import Dict, Literal, TypedDict, cast
@@ -21,11 +25,22 @@ app.register_blueprint(blueprint)
 CORS(app)
 
 bootstrapper = Container()
-bootstrapper.setup_container()
+
+
+class SingleMetadata(TypedDict):
+    provider_metadata: Metadata
+    youtube_metadata: YTVideoInfo
+
+
+class PlaylistResponseInfo(TypedDict):
+    name: str
+    cover: str
+    artist: str | None
+    metadata: list[SingleMetadata]
 
 
 class PlaylistResponse(TypedDict):
-    playlist_info: PlaylistInfo
+    playlist_info: PlaylistResponseInfo
     resource: Literal["playlist"]
     action: str
 
@@ -33,7 +48,7 @@ class PlaylistResponse(TypedDict):
 class ArtistResponse(TypedDict):
     name: str
     cover: str
-    playlist_info: list[PlaylistInfo]
+    playlist_info: list[PlaylistResponseInfo]
     resource: Literal["playlist"]
     action: str
 
@@ -111,9 +126,9 @@ def query(action: str):
         case "search":
             # search on spotify
             try:
-                spotify_result = bootstrapper.domain.spotify_search.search_track(query)
+                spotify_result = bootstrapper.domain.provider_search.search_track(query)
             except SongNotFound as e:
-                return jsonify({"error": str(e)}), 500
+                spotify_result = None
 
             except Exception as e:
                 # catch edge case for future handling
@@ -123,14 +138,14 @@ def query(action: str):
             metadata = spotify_result
 
             # search on youtube
-            spotify_title = metadata.full_title
+            search_title = metadata.full_title if metadata else query
 
             try:
                 youtube_result = bootstrapper.domain.youtube_search.video_search(
-                    query=spotify_title, is_general_search=True
+                    query=search_title, is_general_search=True
                 )
             except SongNotFound:
-                return jsonify({"message": f"{spotify_title} not available"}), 500
+                return jsonify({"message": f"{search_title} not available"}), 500
 
             # find best match
             # cached result will be the only item in list
@@ -139,25 +154,31 @@ def query(action: str):
             else:
                 best_match = None
 
-                for result in youtube_result.result:
-                    # clean uploader and title first
-                    cleaned = bootstrapper.core.extractor.extract_artist_and_title(
-                        video_info=result, metadata=metadata
-                    )
-                    result.full_title = cleaned
+                if not metadata:
+                    best_match = youtube_result.result[0]
 
-                    tracks_match = bootstrapper.core.matcher.match_tracks(
-                        video_info=result, metadata=metadata
-                    )
+                else:
+                    for result in youtube_result.result:
+                        # clean uploader and title first
+                        cleaned = bootstrapper.core.extractor.extract_artist_and_title(
+                            video_info=result, metadata=metadata
+                        )
+                        result.full_title = cleaned
 
-                    if tracks_match:
-                        best_match = result
-                        break
+                        tracks_match = bootstrapper.core.matcher.match_tracks(
+                            video_info=result, metadata=metadata
+                        )
+
+                        if tracks_match:
+                            best_match = result
+                            break
 
             if not best_match:
-                return jsonify({"message": f"{spotify_title} not available"}), 500
+                return jsonify({"message": f"{search_title} not available"}), 500
 
             youtube_title = best_match.full_title
+            if not metadata:
+                metadata = bootstrapper.domain.youtube_metadata.get(best_match)
 
             search_response: SingleResponse = {
                 "video_info": best_match,
@@ -167,7 +188,7 @@ def query(action: str):
                 "action": action,
             }
 
-            storage.new(query=youtube_title, result=best_match, query_type="ytdl")
+            storage.new(query=youtube_title, result=best_match, query_type="youtube")
             storage.save()
 
             return jsonify(search_response)
@@ -198,10 +219,34 @@ def query(action: str):
 
                 # ---- handle playlist ----
                 case "playlist":
+                    resolved_media = cast(MediaResourcePlaylist, resolved_media)
+
+                    combined_metadata = zip(
+                        resolved_media.playlist_info.provider_metadata,
+                        resolved_media.playlist_info.youtube_metadata,
+                    )
+                    playlist_metadata: list[SingleMetadata] = []
+                    for provider, youtube in combined_metadata:
+                        single_metadata: SingleMetadata = {
+                            "youtube_metadata": youtube,
+                            "provider_metadata": provider,
+                        }
+                        playlist_metadata.append(single_metadata)
+
+                    playlist_info: PlaylistResponseInfo = {
+                        "metadata": playlist_metadata,
+                        "name": resolved_media.playlist_info.name,
+                        "cover": resolved_media.playlist_info.cover,
+                        "artist": resolved_media.playlist_info.artist,
+                    }
+
+                    playlist_info = get_playlist_info(
+                        playlist=resolved_media.playlist_info
+                    )
                     playlist_response: PlaylistResponse = {
                         "action": action,
                         "resource": "playlist",
-                        "playlist_info": resolved_media.playlist_info,
+                        "playlist_info": playlist_info,
                     }
                     return jsonify(playlist_response)
 
@@ -213,8 +258,13 @@ def query(action: str):
             if not artist_result:
                 return jsonify({"error": f"No results for {query}"}), 500
 
+            all_playlist_info: list[PlaylistResponseInfo] = []
+            for playlist in artist_result.playlist:
+                playlist_info = get_playlist_info(playlist)
+                all_playlist_info.append(playlist_info)
+
             artist_response: ArtistResponse = {
-                "playlist_info": artist_result.playlist,
+                "playlist_info": all_playlist_info,
                 "resource": "playlist",
                 "action": action,
                 "name": artist_result.name,
@@ -231,13 +281,14 @@ def query(action: str):
             except SongNotFound:
                 return jsonify({"error": "No saved tracks found"}), 500
 
-            playlist_response = {
+            playlist_info = get_playlist_info(saved_tracks)
+            saved_playlist_response: PlaylistResponse = {
                 "action": action,
                 "resource": "playlist",
-                "playlist_info": saved_tracks,
+                "playlist_info": playlist_info,
             }
 
-            return jsonify(playlist_response)
+            return jsonify(saved_playlist_response)
 
         case _:
             return (
@@ -246,4 +297,23 @@ def query(action: str):
                 ),
                 400,
             )
+
+
+def get_playlist_info(playlist: PlaylistInfo) -> PlaylistResponseInfo:
+    playlist_metadata: list[SingleMetadata] = []
+    for provider, youtube in zip(playlist.provider_metadata, playlist.youtube_metadata):
+        playlist_metadata.append(
+            {
+                "provider_metadata": provider,
+                "youtube_metadata": youtube,
+            }
+        )
+
+    playlist_info: PlaylistResponseInfo = {
+        "name": playlist.name,
+        "cover": playlist.cover,
+        "metadata": playlist_metadata,
+        "artist": "",
+    }
+    return playlist_info
 

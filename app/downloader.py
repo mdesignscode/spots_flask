@@ -55,7 +55,9 @@ class Downloader:
         self.clients.ytdlp.options = {"outtmpl": download_path}
 
         # download video
-        self.clients.ytdlp.ydl.download([url])
+        self.clients.ytdlp.client.download([url])
+
+        self.clients.ytdlp.reset_options()
 
         # post download processing
         converted = self.core.converter.convert_to_mp3(

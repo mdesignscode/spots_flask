@@ -28,13 +28,6 @@ class VideoConverter:
     - Adding successful downloads to the download history
     """
 
-    def __init__(self) -> None:
-        """
-        Initialize the VideoToMp3Service.
-
-        Sets up the download history service.
-        """
-
     def update_metadata(self, *, audio_path: str, metadata: Metadata) -> None:
         """
         Update the ID3 metadata of an MP3 file.
@@ -68,10 +61,10 @@ class VideoConverter:
 
             # Handle cover art
             cover = metadata.cover
-            if cover and "/static/" in cover:
-                cover = "http://127.0.0.1:5000" + cover
-
             if cover:
+                if "/static/" in cover:
+                    cover = "http://127.0.0.1:5000" + cover
+
                 audio.tags.add(
                     APIC(
                         encoding=3,

@@ -1,6 +1,6 @@
 from __future__ import annotations
-from dataclasses import dataclass
 
+from dataclasses import dataclass
 from engine.persistence_model import storage
 from logging import info
 from models.errors import EmptySpotifyLikes, SongNotFound
@@ -9,10 +9,13 @@ from tenacity import stop_after_delay
 from engine.retry import retry
 from typing import TYPE_CHECKING
 
-from models.playlist_info import PlaylistInfo
+from models import PlaylistInfo
 
 if TYPE_CHECKING:
-    from bootstrap.container import Core, Domain, Orchestration, Clients
+    from bootstrap.container import Core, Domain, Clients
+    from services.spotify_search_service import SpotifySearchService
+    from services.spotify_metadata_service import SpotifyMetadataService
+    from services import ProvidersSearch
 
 
 @dataclass
@@ -21,17 +24,29 @@ class ArtistResult:
     name: str
     cover: str
 
+
 class SpotifyPlaylistCompilation:
     """A service for retrieving a collection of playlists from Spotify"""
 
-    def __init__(self, *, core: Core, domain: Domain, orchestration: Orchestration, clients: Clients) -> None:
+    def __init__(
+        self,
+        *,
+        core: Core,
+        domain: Domain,
+        clients: Clients,
+        metadata: SpotifyMetadataService,
+        providers_search: ProvidersSearch,
+    ) -> None:
+        self.providers_search = providers_search
         self.core = core
         self.domain = domain
-        self.orchestration = orchestration
         self.clients = clients
+        self.metadata = metadata
 
     @retry(stop=stop_after_delay(60))
-    def artist_albums(self, *, artist: str, essentials_playlist: str | None = None) -> ArtistResult:
+    def artist_albums(
+        self, *, artist: str, essentials_playlist: str | None = None
+    ) -> ArtistResult:
         """
         Retrieves the albums of a given artist.
 
@@ -40,10 +55,10 @@ class SpotifyPlaylistCompilation:
             essentials_playlist (str | None, optional): A spotify playlist to scrape. Defaults to None.
         """
 
-        artist_search = self.domain.spotify_search.search_artist(artist)
-        artist_name = artist_search["name"]
-        artist_id = artist_search["id"]
-        artist_cover = artist_search["images"][0]["url"]
+        artist_search = self.providers_search.main.search_artist(artist)
+        artist_name = artist_search.name
+        artist_id = artist_search.id
+        artist_cover = artist_search.cover
 
         all_artist_albums: list[PlaylistInfo] = []
 
@@ -53,8 +68,14 @@ class SpotifyPlaylistCompilation:
                 essentials_playlist
             )
 
-            scraped_playlist = [self.orchestration.metadata.spotify_metadata.get(track_id=track_id) for track_id in essentials_playlist_data.ids]
-            domain_matches = self.orchestration.search.filter_matching_domain_results(spotify_results=scraped_playlist)
+            scraped_playlist = [
+                track
+                for track_id in essentials_playlist_data.ids
+                if (track := self.metadata.get(track_id=track_id))
+            ]
+            domain_matches = self.providers_search.filter_matching_domain_results(
+                provider_results=scraped_playlist
+            )
 
             scraped_cover = essentials_playlist_data.cover
             scraped_title = essentials_playlist_data.name
@@ -68,21 +89,33 @@ class SpotifyPlaylistCompilation:
                 "cover": essential_cover,
                 "name": essential_title,
                 "artist": artist_name,
-            } | {"spotify_metadata": domain_matches.spotify, "youtube_metadata": domain_matches.youtube}
+            }
 
-            all_artist_albums.append(PlaylistInfo(**scraped_data))
+            all_artist_albums.append(
+                PlaylistInfo(
+                    cover=scraped_data["cover"],
+                    name=scraped_data["name"],
+                    artist=scraped_data["artist"],
+                    provider_metadata=domain_matches.provider,
+                    youtube_metadata=domain_matches.youtube,
+                )
+            )
 
         # top tracks
         try:
-            top_tracks = self.orchestration.search.spotify_search.search_artist_top_tracks(artist_id=artist_id)
+            top_tracks = self.providers_search.main.search_artist_top_tracks(
+                artist_id=artist_id
+            )
             all_artist_albums.append(top_tracks)
         except SongNotFound:
             pass
 
         # retrieve artist albums
-        result = self.clients.spotify.spotify.artist_albums(artist_id)
+        result = self.clients.spotify.client.artist_albums(artist_id)
         if not result:
-            return ArtistResult(playlist=all_artist_albums, name=artist_name, cover=artist_cover)
+            return ArtistResult(
+                playlist=all_artist_albums, name=artist_name, cover=artist_cover
+            )
 
         # filter albums for the specified artist
         artist_albums = list(
@@ -101,9 +134,11 @@ class SpotifyPlaylistCompilation:
             # get all tracks of album
             album_url = "https://open.spotify.com/album/" + item["id"]
 
-            all_artist_albums.append(self.orchestration.search.spotify_search.search_album(album_url))
+            all_artist_albums.append(self.providers_search.main.search_album(album_url))
 
-        return ArtistResult(playlist=all_artist_albums, name=artist_name, cover=artist_cover)
+        return ArtistResult(
+            playlist=all_artist_albums, name=artist_name, cover=artist_cover
+        )
 
     @retry(stop=stop_after_delay(60))
     def user_saved_tracks(self) -> PlaylistInfo:
@@ -115,15 +150,37 @@ class SpotifyPlaylistCompilation:
         Raises:
             EmptySpotifyLikes: When no likes returned
         """
+        cached_likes = storage.get_spotify_likes()
+        cover = "avatar.jpg"
+        username = self.clients.secrets.read(key="username")
+        if not username:
+            raise RuntimeError("No username provided in `.env` file")
+        if not cached_likes:
+            raise SongNotFound("Spotify likes")
+        domain_matches = self.providers_search.filter_matching_domain_results(
+            provider_results=list(cached_likes.values())
+        )
+        return PlaylistInfo(
+            cover=cover,
+            name=username,
+            provider_metadata=domain_matches.provider,
+            youtube_metadata=domain_matches.youtube,
+        )
+
+        # NOTE: Spotify now requires a paid subscription to use the API
         info("Searching for user saved tracks...")
         limit = 50
         user_tracks = None
 
         try:
-            user_tracks = self.clients.spotify.spotify.current_user_saved_tracks(limit=limit)
+            user_tracks = self.clients.spotify.spotify.current_user_saved_tracks(
+                limit=limit
+            )
         except SpotifyException:
             self.clients.spotify.signin()
-            user_tracks = self.clients.spotify.spotify.current_user_saved_tracks(limit=limit)
+            user_tracks = self.clients.spotify.spotify.current_user_saved_tracks(
+                limit=limit
+            )
 
         if not user_tracks:
             raise EmptySpotifyLikes
@@ -139,7 +196,9 @@ class SpotifyPlaylistCompilation:
 
             # paginate through the rest of the tracks
             while index <= total_tracks:
-                user_tracks = self.clients.spotify.spotify.current_user_saved_tracks(offset=index, limit=limit)
+                user_tracks = self.clients.spotify.spotify.current_user_saved_tracks(
+                    offset=index, limit=limit
+                )
 
                 if user_tracks:
                     # append the next set of ids
@@ -153,7 +212,9 @@ class SpotifyPlaylistCompilation:
         for index, track_id in enumerate(id_list):
             print(f"Getting liked song {index + 1}/{len(id_list)}")
             # get track data
-            metadata = self.orchestration.metadata.spotify_metadata.get(track_id=track_id)
+            metadata = self.orchestration.metadata.spotify_metadata.get(
+                track_id=track_id
+            )
             metadata_list.append(metadata)
 
             # add to likes cache
@@ -163,10 +224,17 @@ class SpotifyPlaylistCompilation:
             if (index % 10 == 0) or (index == (len(id_list) - 1)):
                 storage.save()
 
-        domain_matches = self.orchestration.search.filter_matching_domain_results(spotify_results=metadata_list)
+        domain_matches = self.orchestration.search.filter_matching_domain_results(
+            spotify_results=metadata_list
+        )
         cover = "avatar.jpg"
         username = self.clients.secrets.read(key="username")
         if not username:
             raise RuntimeError("No username provided in `.env` file")
-        return PlaylistInfo(cover=cover, name=username, spotify_metadata=domain_matches.spotify,youtube_metadata=domain_matches.youtube)
+        return PlaylistInfo(
+            cover=cover,
+            name=username,
+            spotify_metadata=domain_matches.spotify,
+            youtube_metadata=domain_matches.youtube,
+        )
 

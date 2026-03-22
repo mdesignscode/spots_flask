@@ -2,26 +2,27 @@ from __future__ import annotations
 
 from logging import info
 from tenacity import stop_after_delay
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from engine.persistence_model import storage
 from engine.retry import retry
-from models.errors import InvalidURL, SongNotFound
-from models.media_resource import MediaResourceSingle, MediaResourcePlaylist
-from models.playlist_info import PlaylistInfo
-from models.sentinel import Sentinel
-from models.yt_video_info import YTVideoInfo
+from models import (
+    InvalidURL,
+    SongNotFound,
+    MediaResourceSingle,
+    MediaResourcePlaylist,
+    PlaylistInfo,
+    Sentinel,
+    YTVideoInfo,
+)
 
 if TYPE_CHECKING:
-    from bootstrap.container import Core, Orchestration, Domain, Clients
+    from bootstrap.container import Core, Domain, Clients
 
 
 class MediaResolver:
-    def __init__(
-        self, core: Core, orchestration: Orchestration, domain: Domain, clients: Clients
-    ):
+    def __init__(self, core: Core, domain: Domain, clients: Clients):
         self.core = core
-        self.orchestration = orchestration
         self.domain = domain
         self.clients = clients
 
@@ -44,9 +45,7 @@ class MediaResolver:
                 info("Resource type: single")
 
                 track_id = url.split("/")[-1]
-                metadata = self.orchestration.metadata.spotify_metadata.get(
-                    track_id=track_id
-                )
+                metadata = self.domain.provider_metadata.get(track_id=track_id)
 
                 # search on YouTube
                 youtube_results = self.domain.youtube_search.video_search(
@@ -64,7 +63,7 @@ class MediaResolver:
             # playlist
             else:
                 info("Resource type: playlist")
-                playlist_info = self.domain.spotify_search.search_playlist(url)
+                playlist_info = self.domain.provider_search.main.search_playlist(url)
 
                 return MediaResourcePlaylist(
                     resource_type="playlist", playlist_info=playlist_info
@@ -76,12 +75,14 @@ class MediaResolver:
             # playlist
             if "playlist" in url:
                 info("Resource type: playlist")
-                playlist_search = self.clients.ytdlp.ydl.extract_info(
+                playlist_search = self.clients.ytdlp.client.extract_info(
                     url, download=False
                 )
 
                 if not playlist_search:
                     raise SongNotFound(url)
+
+                playlist_search = cast(dict[str, Any], playlist_search)
 
                 videos_list = [
                     YTVideoInfo(
@@ -95,7 +96,7 @@ class MediaResolver:
                 ]
 
                 domain_matches = (
-                    self.orchestration.search.filter_matching_domain_results(
+                    self.domain.provider_search.filter_matching_domain_results(
                         youtube_results=videos_list
                     )
                 )
@@ -106,7 +107,7 @@ class MediaResolver:
                 playlist_info = PlaylistInfo(
                     name=playlist_name,
                     cover=cover,
-                    spotify_metadata=domain_matches.spotify,
+                    provider_metadata=domain_matches.provider,
                     youtube_metadata=domain_matches.youtube,
                 )
 
@@ -120,7 +121,7 @@ class MediaResolver:
                     query=url, is_general_search=False
                 )
                 if video_info.is_cached:
-                    cached_metadata = storage.get(query=url, query_type="spotify")
+                    cached_metadata = storage.get(query=url, query_type="metadata")
                     return MediaResourceSingle(
                         resource_type="single",
                         metadata=cached_metadata,
@@ -129,23 +130,27 @@ class MediaResolver:
 
                 yt_title = video_info.result.full_title
                 try:
-                    metadata = self.domain.spotify_search.search_track(yt_title)
+                    metadata = self.domain.provider_search.main.search_track(yt_title)
                 except SongNotFound:
-                    storage.new(query=yt_title, result=Sentinel(), query_type="spotify")
-                    storage.new(query=yt_title, result=Sentinel(), query_type="ytdl")
+                    storage.new(
+                        query=yt_title, result=Sentinel(), query_type="metadata"
+                    )
+                    storage.new(query=yt_title, result=Sentinel(), query_type="youtube")
                     raise
 
                 tracks_match = self.core.matcher.match_tracks(
                     metadata=metadata, video_info=video_info.result
                 )
                 if not tracks_match:
-                    storage.new(query=yt_title, result=Sentinel(), query_type="spotify")
-                    storage.new(query=yt_title, result=Sentinel(), query_type="ytdl")
+                    storage.new(
+                        query=yt_title, result=Sentinel(), query_type="metadata"
+                    )
+                    storage.new(query=yt_title, result=Sentinel(), query_type="youtube")
                     raise SongNotFound(yt_title)
                 else:
-                    storage.new(query=yt_title, result=metadata, query_type="spotify")
+                    storage.new(query=yt_title, result=metadata, query_type="metadata")
                     storage.new(
-                        query=yt_title, result=video_info.result, query_type="ytdl"
+                        query=yt_title, result=video_info.result, query_type="youtube"
                     )
                     return MediaResourceSingle(
                         resource_type="single",

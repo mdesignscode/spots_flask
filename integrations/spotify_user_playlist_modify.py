@@ -29,11 +29,11 @@ class SpotifyUserPlaylistModify:
 
         info(f"Removing {tracks} from playlist...")
         if action == "add":
-            self.clients.spotify.spotify.current_user_saved_tracks_add(
+            self.clients.spotify.client.current_user_saved_tracks_add(
                 tracks
             )
         elif action == "delete":
-            self.clients.spotify.spotify.current_user_saved_tracks_delete(
+            self.clients.spotify.client.current_user_saved_tracks_delete(
                 [tracks]
             )
         else:

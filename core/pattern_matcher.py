@@ -146,7 +146,7 @@ class PatternMatcher:
         self, *, search_results: list[YTVideoInfo], metadata: Metadata
     ) -> YTVideoInfo:
         query = f"{metadata.artist} - {metadata.title}"
-        cache = storage.get(query=query, query_type="ytdl")
+        cache = storage.get(query=query, query_type="youtube")
         if cache:
             return cache
 
@@ -156,9 +156,9 @@ class PatternMatcher:
             )
             result.full_title = title_and_artist
             if self.match_tracks(video_info=result, metadata=metadata):
-                storage.new(query=query, result=result, query_type="ytdl")
+                storage.new(query=query, result=result, query_type="youtube")
                 return result
 
-        storage.new(query=query, result=Sentinel(), query_type="ytdl")
+        storage.new(query=query, result=Sentinel(), query_type="youtube")
         raise SongNotFound(query)
 

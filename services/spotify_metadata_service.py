@@ -3,24 +3,24 @@ from __future__ import annotations
 from datetime import datetime
 from logging import error, info
 from spotipy.exceptions import SpotifyException
-from typing import TYPE_CHECKING, Any, overload
+from typing import Any, overload, TYPE_CHECKING
 
 from engine.persistence_model import storage
-from models.errors import SongNotFound
-from models.metadata import Metadata
-from models.sentinel import Sentinel
+from models import SongNotFound, Metadata, Sentinel, MetadataProvider
 
 if TYPE_CHECKING:
     from bootstrap.container import Core, Clients
 
-class SpotifyMetadataService:
+
+class SpotifyMetadataService(MetadataProvider):
     def __init__(
         self,
-        core: Core,
+        *,
         clients: Clients,
+        core: Core,
     ):
-        self.core = core
         self.clients = clients
+        self.core = core
 
     @overload
     def get(
@@ -38,20 +38,6 @@ class SpotifyMetadataService:
         track_id: str | None = None,
         search_result: dict[str, Any] | None = None,
     ) -> Metadata:
-        """
-        Retrieves metadata for a spotify track
-
-        Arguments:
-            track_id (str): the track id to retrieve data from.
-
-        Returns:
-            Metadata: an object with retrieved data
-
-        Raises:
-            SongNotFound: if spotify search results empty.
-            InvalidURL: if spotify url invalid.
-            MetadataNotFound: if metadata not found for id.
-        """
         info("Searching for metadata on Spotify...")
 
         if track_id is not None:
@@ -63,7 +49,7 @@ class SpotifyMetadataService:
 
         # check cache first
         url = "https://open.spotify.com/track/" + query_id
-        cache = storage.get(query=url, query_type="spotify")
+        cache = storage.get(query=url, query_type="metadata")
         if isinstance(cache, Sentinel):
             raise SongNotFound(query_id)
         elif isinstance(cache, Metadata):
@@ -73,7 +59,7 @@ class SpotifyMetadataService:
         if track_id is not None:
             try:
                 # retrieve track from spotify
-                track = self.clients.spotify.spotify.track(
+                track = self.clients.spotify.client.track(
                     track_id
                 )
 
@@ -83,7 +69,7 @@ class SpotifyMetadataService:
                         raise RuntimeError("Authentication Failed") from e
                     else:
                         self.clients.spotify.signin()
-                        track = self.clients.spotify.spotify.track(
+                        track = self.clients.spotify.client.track(
                             track_id
                         )
                 else:
@@ -93,7 +79,7 @@ class SpotifyMetadataService:
                     ) from e
 
             if not track:
-                storage.new(query=url, result=Sentinel(), query_type="spotify")
+                storage.new(query=url, result=Sentinel(), query_type="metadata")
                 raise SongNotFound(f"Spotify id: {track_id}")
         elif search_result is not None:
             track = search_result
@@ -133,27 +119,16 @@ class SpotifyMetadataService:
         album_name = album["name"]
 
         # get track lyrics
-        try:
-            song = self.core.lyrics.genius.search_song(
-                track_name, artist
-            )
-
-            if not song or "Verse" not in song.lyrics or track_name not in song.title:
-                lyrics = (
-                    self.core.scraper.scrape_azlyrics(
-                        artist=artist, title=track_name
-                    )
-                )
-            else:
-                lyrics = song.lyrics
-        except Exception as e:
-            error(e)
-            lyrics = ""
+        lyrics = self.core.lyrics.get_lyrics(
+            title=track_name, artist=artist
+        )
 
         preview_url = track["preview_url"] or ""
 
+        first_artist = track["artists"][0]
         metadata = Metadata(
             track_name,
+            artist_id=first_artist["id"],
             artist=artist,
             link=track_url,
             cover=cover,

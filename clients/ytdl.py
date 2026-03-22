@@ -1,5 +1,5 @@
 from typing import Any
-from yt_dlp import YoutubeDL
+from yt_dlp import YoutubeDL, _Params
 
 
 class YtDlpClient:
@@ -18,7 +18,7 @@ class YtDlpClient:
     def __init__(
         self,
         *,
-        extra_options: dict[str, Any] = {},
+        extra_options: _Params = {},
     ):
         """
         Initialize the YtDlpClient.
@@ -26,23 +26,27 @@ class YtDlpClient:
         Sets up youtube clients.
         """
 
-        self.client_options = {
+        self.default_options: _Params = {
             "js_runtimes": {"node": {}},
-            "remote_components": ["ejs:github"],
+            "remote_components":  {"ejs:github"},
             "format": "bestaudio/best",
             "outtmpl": "%(title)s.%(ext)s",
             "quiet": True,
             "cookiefile": "cookies.txt",
             "noplaylist": True,
             "cachedir": "./yt_cache",
-        } | extra_options
-        self.ydl = YoutubeDL(self.options)
+        }
+        self.client_options: _Params = self.default_options | extra_options
+        self.client = YoutubeDL(self.client_options)
 
     @property
-    def options(self):
+    def options(self) -> _Params:
         return self.client_options
 
     @options.setter
-    def options(self, extra_options: dict[str, Any]):
+    def options(self, extra_options: _Params) -> None:
         self.options = self.client_options | extra_options
+
+    def reset_options(self) -> None:
+        self.client_options = self.default_options
 

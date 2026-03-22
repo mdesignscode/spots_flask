@@ -1,49 +1,49 @@
 from __future__ import annotations
-
 from logging import info, error
 from re import escape, search
 from tenacity import stop_after_delay
 from typing import Any, TYPE_CHECKING
 
-from clients.spotify import SpotifyClient
 from engine.persistence_model import storage
 from engine.retry import retry
-from models.errors import SongNotFound
-from models.metadata import Metadata
-from models.playlist_info import PlaylistInfo
-from models.sentinel import Sentinel
-
+from models import SongNotFound, Metadata, PlaylistInfo, SearchProvider, Sentinel, ArtistInfo
+import services
+from services.providers_search import ProvidersSearch
 
 if TYPE_CHECKING:
-    from services.spotify_metadata_service import SpotifyMetadataService
+    from bootstrap.container import Clients
+    from models import MetadataProvider
+    from services import ProvidersSearch
 
 
-class SpotifySearchService:
-    """Responsible for searching for query on Spotify"""
+class SpotifySearchService(SearchProvider):
 
     def __init__(
         self,
         *,
-        spotify_metadata: SpotifyMetadataService
+        metadata: MetadataProvider,
+        clients: Clients,
+        providers_search: ProvidersSearch
     ):
-        self.spotify_service = SpotifyClient()
-        self.spotify_metadata = spotify_metadata
+        self.metadata = metadata
+        self.clients = clients
+        self.providers = providers_search
 
-    def search_artist(self, artist_query: str) -> dict[str, Any]:
+    def search_artist(self, artist_query: str) -> ArtistInfo:
         artist_url = "https://open.spotify.com/artist/"
         artist_id = ""
 
         # get artist by id
         if artist_url in artist_query:
             artist_id = artist_query.replace(artist_url, "").split("?")[0]
-            result = self.spotify_service.spotify.artist(artist_id)
+            result = self.clients.spotify.client.artist(artist_id)
 
             if not result:
                 raise SongNotFound(artist_query)
 
         else:
             # search for the artist
-            result = self.spotify_service.spotify.search(artist_query, 1, type="artist")
+            result = self.clients.spotify.client.search(artist_query, 1, type="artist")
 
             if not result:
                 raise SongNotFound(artist_query)
@@ -53,20 +53,20 @@ class SpotifySearchService:
         return result
 
     def search_artist_top_tracks(self, *, artist_id: str) -> PlaylistInfo:
-        artist_details = self.spotify_service.spotify.artist(artist_id)
+        artist_details = self.clients.spotify.client.artist(artist_id)
         if not artist_details:
             raise SongNotFound(artist_id)
 
         artist_name = artist_details["name"]
         artist_cover = artist_details["images"][0]["url"]
 
-        top_tracks_search = self.spotify_service.spotify.artist_top_tracks(artist_id)
+        top_tracks_search = self.clients.spotify.client.artist_top_tracks(artist_id)
         if not top_tracks_search:
             raise SongNotFound(artist_id)
 
         # get metadata for each top track
         top_tracks_playlist = [
-            self.spotify_metadata.get(track_id=top_track["id"])
+            self.metadata.get(track_id=top_track["id"])
             for top_track in top_tracks_search["tracks"]
         ]
 
@@ -74,12 +74,12 @@ class SpotifySearchService:
             cover=artist_cover,
             name="Top Tracks",
             artist=artist_name,
-            spotify_metadata=top_tracks_playlist,
+            provider_metadata=top_tracks_playlist,
             youtube_metadata=[],
         )
 
     def search_playlist(self, playlist_url: str) -> PlaylistInfo:
-        playlist_result = self.spotify_service.spotify.playlist(playlist_url)
+        playlist_result = self.clients.spotify.client.playlist(playlist_url)
 
         if not playlist_result:
             raise SongNotFound(playlist_url)
@@ -88,8 +88,7 @@ class SpotifySearchService:
         playlist_tracks: list[dict[str, Any]] = playlist_result["tracks"]["items"]
 
         playlist_metadata = [
-            self.spotify_metadata.get(search_result=track)
-            for track in playlist_tracks
+            self.metadata.get(search_result=track) for track in playlist_tracks
         ]
 
         cover = playlist_result["images"][0]["url"]
@@ -100,12 +99,12 @@ class SpotifySearchService:
             cover=cover,
             artist=artist,
             name=playlist_name,
-            spotify_metadata=playlist_metadata,
+            provider_metadata=playlist_metadata,
             youtube_metadata=[],
         )
 
     def search_album(self, album_url: str) -> PlaylistInfo:
-        album_result = self.spotify_service.spotify.album(album_url)
+        album_result = self.clients.spotify.client.album(album_url)
         if not album_result:
             raise SongNotFound(album_url)
 
@@ -116,8 +115,7 @@ class SpotifySearchService:
         playlist_tracks: list[dict[str, Any]] = album_result["tracks"]["items"]
 
         playlist_metadata = [
-            self.spotify_metadata.get(search_result=track)
-            for track in playlist_tracks
+            self.metadata.get(search_result=track) for track in playlist_tracks
         ]
 
         cover = album_result["images"][0]["url"]
@@ -128,7 +126,7 @@ class SpotifySearchService:
             cover=cover,
             artist=artist,
             name=album_name,
-            spotify_metadata=playlist_metadata,
+            provider_metadata=playlist_metadata,
             youtube_metadata=[],
         )
 
@@ -153,27 +151,25 @@ class SpotifySearchService:
             error(error_txt)
             raise TypeError(error_txt)
 
-        cache = storage.get(query=query, query_type="spotify")
+        cache = storage.get(query=query, query_type="metadata")
         if isinstance(cache, Sentinel):
             raise SongNotFound(query)
         elif isinstance(cache, Metadata):
             return cache
 
         # search for a single
-        single_result = self.spotify_service.spotify.search(query)
+        single_result = self.clients.spotify.client.search(query)
 
         if not single_result:
             info(f"{query} not found")
-            raise SongNotFound(query)
+            return self.providers.fallback(query)
 
         try:
             track_id = single_result["tracks"]["items"][0]["id"]
         except IndexError:
             raise SongNotFound(query)
 
-        single_data = self.spotify_metadata.get(
-            track_id=track_id
-        )
+        single_data = self.metadata.get(track_id=track_id)
 
         # get query artist
         query_artist = query.split(" - ")[0].lower()
@@ -188,29 +184,29 @@ class SpotifySearchService:
         if not artist_match and not search(single_data.title.lower(), query.lower()):
             info("Searching for album version...")
             # get album id of first result
-            results = self.spotify_service.spotify.search(query, type="album")
+            results = self.clients.spotify.client.search(query, type="album")
 
             if not results:
                 info(f"{query} not found")
-                raise SongNotFound(query)
+                return self.providers.fallback(query)
 
             try:
                 album_id = results["albums"]["items"][0]["id"]
             except IndexError:
-                raise SongNotFound(query)
+                return self.providers.fallback(query)
 
             # get album search function
             album_url = "https://open.spotify.com/album/" + album_id
-            album = self.spotify_service.spotify.album(album_url)
+            album = self.clients.spotify.client.album(album_url)
 
             if not album:
                 info(f"{query} not found")
-                raise SongNotFound(query)
+                return self.providers.fallback(query)
 
             # get id of first result
             track_id = album["tracks"]["items"][0]["id"]
 
-            return self.spotify_metadata.get(track_id=track_id)
+            return self.metadata.get(track_id=track_id)
 
         return single_data
 

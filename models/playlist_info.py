@@ -12,13 +12,13 @@ class PlaylistInfo:
         cover (str): The playlist cover image.
         name (str): The playlist's name.
         artist (str, Optional): The artist of the playlist (if album). Defaults to None.
-        spotify_metadata (list[Metadata]): A list of spotify metadata for the playlist.
+        provider_metadata (list[Metadata]): A list of provider metadata for the playlist.
         youtube_metadata (list[YTVideoInfo]): A list youtube metadata for the playlist.
     """
 
     name: str
     cover: str
-    spotify_metadata: list[Metadata]
+    provider_metadata: list[Metadata]
     youtube_metadata: list[YTVideoInfo]
     artist: str | None = None
 

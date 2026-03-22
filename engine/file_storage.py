@@ -11,28 +11,28 @@ from tempfile import NamedTemporaryFile
 from logging import info
 
 
-TSpotifyCache = dict[str, Metadata | Sentinel]
-TArtistCache = dict[str, Sequence[Metadata | Sentinel]]
+TMetadataCache = dict[str, Metadata | Sentinel]
+TArtistCache = dict[str, Sequence[YTVideoInfo| Sentinel]]
 
 TSerializedRecord = dict[str, dict[str, Any]]
 
-MediaProviders = Literal["spotify", "artist", "ytdl", "yt_likes", "spotify_likes"]
+MediaProviders = Literal["artist", "youtube", "yt_likes", "spotify_likes", "metadata"]
 
 NOT_FOUND = Sentinel()
 
 
 class CacheOptions(TypedDict):
-    spotify: TSpotifyCache
+    metadata: TMetadataCache
     artist: TArtistCache
-    ytdl: dict[str, Any]
+    youtube: dict[str, Any]
     yt_likes: dict[str, YTVideoInfo | Sentinel]
-    spotify_likes: TSpotifyCache
+    spotify_likes: TMetadataCache
 
 
 class SerializedCacheOptions(TypedDict):
-    spotify: dict[str, TSerializedRecord]
+    metadata: dict[str, TSerializedRecord]
     artist: dict[str, list[dict[str, Any]]]
-    ytdl: dict[str, YTVideoInfo]
+    youtube: dict[str, YTVideoInfo]
     yt_likes: dict[str, TSerializedRecord]
     spotify_likes: dict[str, TSerializedRecord]
 
@@ -40,18 +40,18 @@ class SerializedCacheOptions(TypedDict):
 class FileStorage:
     """A class for caching search results in a JSON file."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.__file_path = "./Music/.metadata.json"
         self.__objects: CacheOptions = {
             "artist": {},
-            "spotify": {},
-            "ytdl": {},
+            "metadata": {},
+            "youtube": {},
             "yt_likes": {},
             "spotify_likes": {},
         }
         self._dirty = False
 
-    def update_ytdl(
+    def update_youtube(
         self,
         query: str,
         *,
@@ -59,7 +59,7 @@ class FileStorage:
         uploader: Optional[str] = None,
     ) -> None:
         """Update fields of an existing YT-DLP cache entry."""
-        record = self.__objects["ytdl"].get(query)
+        record = self.__objects["youtube"].get(query)
 
         if not record:
             return
@@ -69,6 +69,9 @@ class FileStorage:
 
         if uploader is not None:
             record.uploader = uploader
+
+    def get_spotify_likes(self) -> TMetadataCache:
+        return self.__objects["spotify_likes"]
 
     def all(self) -> CacheOptions:
         """Returns the stored objects."""
@@ -89,7 +92,7 @@ class FileStorage:
         *,
         query: str,
         result: Metadata | Sentinel,
-        query_type: Literal["spotify"],
+        query_type: Literal["metadata"],
     ) -> None: ...
 
     @overload
@@ -106,7 +109,7 @@ class FileStorage:
         self,
         *,
         query: str,
-        result: Sequence[Metadata | Sentinel],
+        result: Sequence[YTVideoInfo | Sentinel],
         query_type: Literal["artist"],
     ) -> None: ...
 
@@ -116,7 +119,7 @@ class FileStorage:
         *,
         query: str,
         result: YTVideoInfo | Sentinel,
-        query_type: Literal["ytdl"],
+        query_type: Literal["youtube"],
     ) -> None: ...
 
     def new(
@@ -134,14 +137,16 @@ class FileStorage:
         self._dirty = True
 
         match query_type:
-            case "spotify":
-                self.__objects["spotify"][query] = result
+            case "metadata":
+                self.__objects["metadata"][query] = result
             case "artist":
+                if not self.__objects["artist"][query]:
+                    self.__objects["artist"][query] = []
                 self.__objects["artist"][query] = list(
                     self.__objects["artist"][query]
                 ) + [result]
-            case "ytdl":
-                self.__objects["ytdl"][query] = result
+            case "youtube":
+                self.__objects["youtube"][query] = result
             case "spotify_likes":
                 self.__objects["spotify_likes"][query] = result
             case "yt_likes":
@@ -152,17 +157,16 @@ class FileStorage:
         if not self._dirty:
             return
 
-
         serialized_objects: SerializedCacheOptions = {
-            "spotify": {
-                key: value.__dict__ for key, value in self.__objects["spotify"].items()
+            "metadata": {
+                key: value.__dict__ for key, value in self.__objects["metadata"].items()
             },
             "artist": {
                 artist: [item.__dict__ for item in playlist]
                 for artist, playlist in self.__objects["artist"].items()
             },
-            "ytdl": {
-                key: value.__dict__ for key, value in self.__objects["ytdl"].items()
+            "youtube": {
+                key: value.__dict__ for key, value in self.__objects["youtube"].items()
             },
             "yt_likes": {
                 key: value.__dict__ for key, value in self.__objects["yt_likes"].items()
@@ -194,17 +198,17 @@ class FileStorage:
             with open(self.__file_path, "r") as file:
                 loaded_objects = load(file)
 
-                if "spotify" in loaded_objects:
-                    self.__objects["spotify"] = {
+                if "metadata" in loaded_objects:
+                    self.__objects["metadata"] = {
                         key: (
                             Metadata(**value)
                             if value != NOT_FOUND.__dict__
                             else NOT_FOUND
                         )
-                        for key, value in loaded_objects["spotify"].items()
+                        for key, value in loaded_objects["deezer"].items()
                     }
                 else:
-                    self.__objects["spotify"] = {}
+                    self.__objects["metadata"] = {}
 
                 if "spotify_likes" in loaded_objects:
                     self.__objects["spotify_likes"] = {
@@ -222,7 +226,7 @@ class FileStorage:
                     self.__objects["artist"] = {
                         artist: [
                             (
-                                Metadata(**item)
+                                YTVideoInfo(**item)
                                 if item != NOT_FOUND.__dict__
                                 else NOT_FOUND
                             )
@@ -233,17 +237,17 @@ class FileStorage:
                 else:
                     self.__objects["artist"] = {}
 
-                if "ytdl" in loaded_objects:
-                    self.__objects["ytdl"] = {
+                if "youtube" in loaded_objects:
+                    self.__objects["youtube"] = {
                         key: (
                             YTVideoInfo(**value)
                             if value != NOT_FOUND.__dict__
                             else NOT_FOUND
                         )
-                        for key, value in loaded_objects["ytdl"].items()
+                        for key, value in loaded_objects["youtube"].items()
                     }
                 else:
-                    self.__objects["ytdl"] = {}
+                    self.__objects["youtube"] = {}
 
                 if "yt_likes" in loaded_objects:
                     self.__objects["yt_likes"] = {
@@ -258,9 +262,9 @@ class FileStorage:
                     self.__objects["yt_likes"] = {}
         except (FileNotFoundError, JSONDecodeError):
             self.__objects = {
-                "spotify": {},
+                "metadata": {},
                 "artist": {},
-                "ytdl": {},
+                "youtube": {},
                 "yt_likes": {},
                 "spotify_likes": {},
             }
@@ -270,7 +274,7 @@ class FileStorage:
         self,
         *,
         query: str,
-        query_type: Literal["spotify"],
+        query_type: Literal["metadata"],
         alt_query: str = "",
     ) -> Metadata: ...
 
@@ -288,7 +292,7 @@ class FileStorage:
         self,
         *,
         query: str,
-        query_type: Literal["ytdl"],
+        query_type: Literal["youtube"],
         alt_query: str = "",
     ) -> YTVideoInfo: ...
 

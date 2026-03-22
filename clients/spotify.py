@@ -23,7 +23,7 @@ class SpotifyClient:
         """Initializes a spotify.spotify"""
 
         auth_manager = SpotifyClientCredentials()
-        self.spotify = Spotify(auth_manager=auth_manager)
+        self.client = Spotify(auth_manager=auth_manager)
 
     def get_user(self) -> str | None:
         """Retrieves the current user
@@ -38,12 +38,14 @@ class SpotifyClient:
 
         try:
             self.signin()
-            user = self.spotify.current_user()
+            user = self.client.current_user()
         except SpotifyException as e:
             error(f"An error occured while signin user in::\n\t{e.msg}")
 
         if user:
             return user["display_name"]
+
+        return None
 
     def signin(self) -> None:
         """signs into a user's spotify account"""
@@ -59,7 +61,7 @@ class SpotifyClient:
 
         try:
             # throws error if user not signed in
-            self.spotify.current_user()
+            self.client.current_user()
             return
         except SpotifyException as e:
             if e.code == -1:
@@ -69,7 +71,7 @@ class SpotifyClient:
 
         if token:
             info("Signed in")
-            self.spotify = Spotify(auth=token)
+            self.client = Spotify(auth=token)
 
             return
         else:

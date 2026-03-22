@@ -6,7 +6,13 @@ from app import (
     YouTubeUserPlaylist,
     SpotifyPlaylistCompilation,
 )
-from clients import YtDlpClient, SpotifyClient, SecretsManager, YouTubeApiClient
+from clients import (
+    YtDlpClient,
+    SpotifyClient,
+    SecretsManager,
+    YouTubeApiClient,
+    DeezerClient,
+)
 from core import (
     WebScraper,
     LyricsFinder,
@@ -15,14 +21,16 @@ from core import (
     VideoConverter,
     YouTubeExtractor,
 )
-from orchestration import SearchOrchestrator, MetadataOrchestrator
+from models import MetadataProvider, SearchProvider
 from services import (
-    SpotifySearchService,
     YoutubeSearchService,
-    SpotifyMetadataService,
     YouTubeMetadataService,
+    ProvidersSearch,
+    ProvidersMetadata,
 )
 from integrations import SpotifyUserPlaylistModify
+from services.spotify_metadata_service import SpotifyMetadataService
+from services.spotify_search_service import SpotifySearchService
 
 
 @dataclass
@@ -41,18 +49,13 @@ class Clients:
     youtube: YouTubeApiClient
     ytdlp: YtDlpClient
     secrets: SecretsManager
-
-
-@dataclass
-class Orchestration:
-    search: SearchOrchestrator
-    metadata: MetadataOrchestrator
+    deezer: DeezerClient
 
 
 @dataclass
 class Domain:
-    spotify_search: SpotifySearchService
-    spotify_metadata: SpotifyMetadataService
+    provider_search: ProvidersSearch
+    provider_metadata: MetadataProvider
     youtube_search: YoutubeSearchService
     youtube_metadata: YouTubeMetadataService
 
@@ -68,33 +71,26 @@ class App:
 
 class Container:
     def __init__(self):
-        self.core: Core
-        self.clients: Clients
-        self.orchestration: Orchestration
-        self.domain: Domain
-        self.app: App
+        self.core =self._build_core()
+        self.clients = self._build_clients()
+        self.domain = self._build_domain()
+        self.app = self._build_application()
 
-    def setup_container(self):
-        self.build_application()
-        self.build_clients()
-        self.build_core()
-        self.build_domain()
-        self.build_orchestrators()
-
-    def build_clients(self):
-        self.clients = Clients(
+    def _build_clients(self) -> Clients:
+        return Clients(
             spotify=SpotifyClient(),
             youtube=YouTubeApiClient(),
             ytdlp=YtDlpClient(),
             secrets=SecretsManager(),
+            deezer=DeezerClient(),
         )
 
-    def build_core(self):
+    def _build_core(self) -> Core:
         scraper = WebScraper()
         secrets_manager = SecretsManager()
         extractor = YouTubeExtractor()
 
-        self.core = Core(
+        return Core(
             history=HistoryManager(),
             lyrics=LyricsFinder(scraper=scraper, secrets_manager=secrets_manager),
             matcher=PatternMatcher(extractor=extractor),
@@ -103,62 +99,67 @@ class Container:
             extractor=YouTubeExtractor(),
         )
 
-    def build_domain(self):
+    def _build_domain(self) -> Domain:
         youtube_search = YoutubeSearchService(clients=self.clients)
-        spotify_search = SpotifySearchService(
-            spotify_metadata=self.orchestration.metadata.spotify_metadata
+
+        provider_metadata = ProvidersMetadata(
+            clients=self.clients,
+            core=self.core,
         )
-        spotify_metadata = SpotifyMetadataService(core=self.core, clients=self.clients)
-        youtube_metadata = YouTubeMetadataService(
-            spotify_search=spotify_search, core=self.core, clients=self.clients
-        )
-        self.domain = Domain(
+        provider_search = ProvidersSearch(
+            core=self.core,
+            clients=self.clients,
             youtube_search=youtube_search,
-            spotify_search=spotify_search,
-            spotify_metadata=spotify_metadata,
+            metadata=provider_metadata.metadata,
+        )
+
+        youtube_metadata = YouTubeMetadataService(
+            search=provider_search.main, clients=self.clients, core=self.core
+        )
+
+        return Domain(
+            youtube_search=youtube_search,
+            provider_search=provider_search,
+            provider_metadata=provider_metadata.metadata,
             youtube_metadata=youtube_metadata,
         )
 
-    def build_application(self):
+    def _build_application(self) -> App:
         downloader = Downloader(core=self.core, clients=self.clients)
         resolver = MediaResolver(
             core=self.core,
-            orchestration=self.orchestration,
             domain=self.domain,
             clients=self.clients,
         )
         spotify_playlist_modify = SpotifyUserPlaylistModify(clients=self.clients)
+
+        youtube_search = YoutubeSearchService(clients=self.clients)
+        spotify_metadata = SpotifyMetadataService(clients=self.clients, core=self.core)
+        providers_search = ProvidersSearch(
+            youtube_search=youtube_search,
+            clients=self.clients,
+            core=self.core,
+            metadata=spotify_metadata,
+        )
         spotify_playlist_compiler = SpotifyPlaylistCompilation(
             core=self.core,
-            orchestration=self.orchestration,
             domain=self.domain,
             clients=self.clients,
+            metadata=spotify_metadata,
+            providers_search=providers_search,
         )
         youtube_user_playlist = YouTubeUserPlaylist(
-            clients=self.clients, core=self.core, domain=self.domain
+            search=youtube_search,
+            clients=self.clients,
+            core=self.core,
+            spotify_playlist_compiler=spotify_playlist_compiler,
         )
 
-        self.app = App(
+        return App(
             downloader=downloader,
             resolver=resolver,
             spotify_playlist_modify=spotify_playlist_modify,
             spotify_playlist_compiler=spotify_playlist_compiler,
             youtube_user_playlist=youtube_user_playlist,
-        )
-
-    def build_orchestrators(self):
-        search_orchestrator = SearchOrchestrator(
-            youtube_search=self.domain.youtube_search,
-            spotify_search=self.domain.spotify_search,
-            metadata_orchestrator=self.orchestration.metadata,
-            matcher=self.core.matcher,
-        )
-        metadata_orchestrator = MetadataOrchestrator(
-            youtube_metadata=self.domain.youtube_metadata,
-            spotify_metadata=self.domain.spotify_metadata,
-        )
-
-        self.orchestration = Orchestration(
-            search=search_orchestrator, metadata=metadata_orchestrator
         )
 

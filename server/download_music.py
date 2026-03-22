@@ -8,14 +8,13 @@ from models.metadata import Metadata
 from models.errors import SongNotFound, TitleExistsError
 from models.yt_video_info import YTVideoInfo
 from tenacity import stop_after_delay
-from typing import Any, Dict, cast
+from typing import Any, cast
 
 
 blueprint = Blueprint("download", __name__, url_prefix="/download")
 
 
 bootstrapper = Container()
-bootstrapper.setup_container()
 
 
 @retry(stop=stop_after_delay(max_delay=120))
@@ -33,9 +32,9 @@ def download_saved_tracks():
     exceptions = []
 
     for index, track in enumerate(
-        zip(saved_tracks.spotify_metadata, saved_tracks.youtube_metadata)
+        zip(saved_tracks.provider_metadata, saved_tracks.youtube_metadata)
     ):
-        info(f"Downloading track {index + 1}/{len(saved_tracks.spotify_metadata)}")
+        info(f"Downloading track {index + 1}/{len(saved_tracks.provider_metadata)}")
 
         video_info = track[1]
         metadata = track[0]
@@ -65,7 +64,7 @@ def download_saved_tracks():
 def download_song():
     try:
         # Access json data
-        json_data = cast(Dict[str, Any], request.json)
+        json_data = cast(dict[str, Any], request.json)
     except Exception:
         json_data = request.form.to_dict()
 
@@ -94,14 +93,15 @@ def download_song():
 
     # -------- Create Metadata --------
     metadata = Metadata(
-        json_data["title"],
-        json_data["artist"],
-        json_data["link"],
-        json_data.get("cover"),
-        json_data.get("tracknumber"),
-        json_data.get("album"),
-        json_data.get("lyrics"),
-        json_data.get("release_date"),
+        title=json_data["title"],
+        artist=json_data["artist"],
+        link=json_data["link"],
+        cover=json_data.get("cover"),
+        tracknumber=json_data.get("tracknumber"),
+        album=json_data.get("album"),
+        lyrics=json_data.get("lyrics"),
+        release_date=json_data.get("release_date"),
+        artist_id=json_data["artist_id"],
     )
 
     # -------- Create YTVideoInfo --------
@@ -121,20 +121,33 @@ def download_song():
     except Exception as e:
         raise e
 
-
+# NOTE: in progress
 @retry(stop=stop_after_delay(max_delay=120))
 @blueprint.route("/artist", methods=["POST"])
 @blueprint.route("/playlist", methods=["POST"])
 def download_playlist():
     query = request.args.get("artist")
 
-    json_dict = cast(Dict[str, str], request.json)
-    json_data = json_dict["selected_songs"]
+    json_dict = cast(dict[str, str], request.json)
+    print(json_dict)
+    raise Exception("Okay now")
+    json_data = cast(list[dict[str, Any]], json_dict["selected_songs"])
     playlist_name = json_dict["playlist_name"]
 
-    selected_songs = [Metadata(**song) for song in json_data]
+    selected_songs = [Metadata(
+        title=song["title"],
+        artist=song["artist"],
+        link=song["link"],
+        cover=song.get("cover"),
+        tracknumber=song.get("tracknumber"),
+        album=song.get("album"),
+        lyrics=song.get("lyrics"),
+        release_date=song.get("release_date"),
+        artist_id=song["artist_id"],
+    ) for song in json_data]
 
-    exceptions = playlist_downloader(selected_songs, playlist_name, bool(query))
+    for song in selected_songs:
+        bootstrapper.app.downloader.download()
 
     storage.save()
 
