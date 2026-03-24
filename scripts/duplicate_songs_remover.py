@@ -7,12 +7,12 @@ from mutagen.id3 import ID3
 from mutagen.mp3 import MP3, HeaderNotFoundError
 
 
-original_songs = {}
+original_songs: dict[str, str] = {}
 
 i = 0
 
 
-def process_song(file_path):
+def process_song(file_path: str):
     """Removes a song if it is a duplicate"""
     try:
         song = MP3(file_path, ID3)
@@ -30,7 +30,7 @@ def process_song(file_path):
         pass
 
 
-def process_directory(directory):
+def process_directory(directory: str):
     """Process all MP3 files in a directory"""
     contents = listdir(directory)
     contents.sort(reverse=True)
@@ -62,3 +62,4 @@ if __name__ == "__main__":
         print("Duplicate songs removed!")
     else:
         print("Folder not found.")
+
