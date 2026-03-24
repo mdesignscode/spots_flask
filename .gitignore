@@ -1,13 +1,14 @@
+# folder to download Music to
 Music
-spots_venv
-.env
-.cache*
+
+# environment files
+venv
 .vscode
 __pycache__
-tests/test_download_urls.py
-q.txt
-cookies.txt
-/.metadata.json
-
 yt_cache
+
+# secret files
+.cache*
+cookies.txt
+.env
 
