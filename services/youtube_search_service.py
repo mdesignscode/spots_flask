@@ -4,7 +4,6 @@ from logging import error, info
 from math import ceil
 from tenacity import stop_after_delay
 from typing import Any, Literal, cast, overload, TYPE_CHECKING
-from yt_dlp import _Params
 
 from engine.persistence_model import storage
 from engine.retry import retry
@@ -18,6 +17,7 @@ from models import (
 )
 
 if TYPE_CHECKING:
+    from yt_dlp import _Params
     from bootstrap.container import Clients
 
 
@@ -200,4 +200,3 @@ class YoutubeSearchService:
             storage.save()
 
             return artist_playlist
-

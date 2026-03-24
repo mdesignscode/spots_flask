@@ -5,6 +5,7 @@ from app import (
     MediaResolver,
     YouTubeUserPlaylist,
     SpotifyPlaylistCompilation,
+    DomainResolver,
 )
 from clients import (
     YtDlpClient,
@@ -25,8 +26,8 @@ from models import MetadataProvider, SearchProvider
 from services import (
     YoutubeSearchService,
     YouTubeMetadataService,
-    ProvidersSearch,
     ProvidersMetadata,
+    ProviderSearchContainer,
 )
 from integrations import SpotifyUserPlaylistModify
 from services.spotify_metadata_service import SpotifyMetadataService
@@ -54,7 +55,7 @@ class Clients:
 
 @dataclass
 class Domain:
-    provider_search: ProvidersSearch
+    provider_search: SearchProvider
     provider_metadata: MetadataProvider
     youtube_search: YoutubeSearchService
     youtube_metadata: YouTubeMetadataService
@@ -67,11 +68,12 @@ class App:
     spotify_playlist_compiler: SpotifyPlaylistCompilation
     youtube_user_playlist: YouTubeUserPlaylist
     spotify_playlist_modify: SpotifyUserPlaylistModify
+    domain_resolver: DomainResolver
 
 
 class Container:
     def __init__(self):
-        self.core =self._build_core()
+        self.core = self._build_core()
         self.clients = self._build_clients()
         self.domain = self._build_domain()
         self.app = self._build_application()
@@ -106,11 +108,9 @@ class Container:
             clients=self.clients,
             core=self.core,
         )
-        provider_search = ProvidersSearch(
-            core=self.core,
-            clients=self.clients,
-            youtube_search=youtube_search,
-            metadata=provider_metadata.metadata,
+
+        provider_search = ProviderSearchContainer(
+            clients=self.clients, metadata=provider_metadata.metadata
         )
 
         youtube_metadata = YouTubeMetadataService(
@@ -119,34 +119,42 @@ class Container:
 
         return Domain(
             youtube_search=youtube_search,
-            provider_search=provider_search,
+            provider_search=provider_search.main,
             provider_metadata=provider_metadata.metadata,
             youtube_metadata=youtube_metadata,
         )
 
     def _build_application(self) -> App:
         downloader = Downloader(core=self.core, clients=self.clients)
+
+        youtube_search = YoutubeSearchService(clients=self.clients)
+        domain_resolver = DomainResolver(
+            core=self.core,
+            youtube_search=youtube_search,
+            provider_search=self.domain.provider_search,
+        )
+
         resolver = MediaResolver(
             core=self.core,
             domain=self.domain,
             clients=self.clients,
+            domain_resolver=domain_resolver,
         )
         spotify_playlist_modify = SpotifyUserPlaylistModify(clients=self.clients)
 
-        youtube_search = YoutubeSearchService(clients=self.clients)
         spotify_metadata = SpotifyMetadataService(clients=self.clients, core=self.core)
-        providers_search = ProvidersSearch(
-            youtube_search=youtube_search,
-            clients=self.clients,
-            core=self.core,
+
+        spotify_search = SpotifySearchService(
             metadata=spotify_metadata,
+            clients=self.clients,
         )
         spotify_playlist_compiler = SpotifyPlaylistCompilation(
             core=self.core,
             domain=self.domain,
             clients=self.clients,
             metadata=spotify_metadata,
-            providers_search=providers_search,
+            spotify_search=spotify_search,
+            domain_resolver=domain_resolver,
         )
         youtube_user_playlist = YouTubeUserPlaylist(
             search=youtube_search,
@@ -161,5 +169,6 @@ class Container:
             spotify_playlist_modify=spotify_playlist_modify,
             spotify_playlist_compiler=spotify_playlist_compiler,
             youtube_user_playlist=youtube_user_playlist,
+            domain_resolver=domain_resolver,
         )
 

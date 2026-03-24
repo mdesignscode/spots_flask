@@ -10,11 +10,11 @@ from models import (
     MetadataProvider,
     SongNotFound,
 )
-from services.providers_search import ProvidersSearch
+from utils import search_fallbacks
 
 if TYPE_CHECKING:
     from bootstrap.container import Clients
-    from services import ProvidersSearch
+    from models import SearchProvider
 
 
 class DeezerResponseBase(TypedDict):
@@ -28,11 +28,11 @@ class DeezerSearchService(SearchProvider):
         *,
         metadata: MetadataProvider,
         clients: Clients,
-        providers: ProvidersSearch,
+        fallback_providers: list[SearchProvider] = [],
     ):
+        self.fallback_providers = fallback_providers
         self.clients = clients
         self.metadata = metadata
-        self.providers = providers
 
     def search_album(self, album_url: str) -> PlaylistInfo:
         album_data = self.clients.deezer._get_resource_by_url(album_url)
@@ -97,5 +97,5 @@ class DeezerSearchService(SearchProvider):
             track_id = self.clients.deezer.search(query)
             return self.metadata.get(track_id=track_id)
         except SongNotFound:
-            return self.providers.fallback(query)
+            return search_fallbacks(query=query, providers=self.fallback_providers)
 

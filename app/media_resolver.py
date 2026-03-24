@@ -4,6 +4,7 @@ from logging import info
 from tenacity import stop_after_delay
 from typing import TYPE_CHECKING, Any, cast
 
+from app import DomainResolver
 from engine.persistence_model import storage
 from engine.retry import retry
 from models import (
@@ -21,7 +22,8 @@ if TYPE_CHECKING:
 
 
 class MediaResolver:
-    def __init__(self, core: Core, domain: Domain, clients: Clients):
+    def __init__(self, core: Core, domain: Domain, clients: Clients, domain_resolver: DomainResolver) -> None:
+        self.domain_resolver = domain_resolver
         self.core = core
         self.domain = domain
         self.clients = clients
@@ -63,7 +65,7 @@ class MediaResolver:
             # playlist
             else:
                 info("Resource type: playlist")
-                playlist_info = self.domain.provider_search.main.search_playlist(url)
+                playlist_info = self.domain.provider_search.search_playlist(url)
 
                 return MediaResourcePlaylist(
                     resource_type="playlist", playlist_info=playlist_info
@@ -96,7 +98,7 @@ class MediaResolver:
                 ]
 
                 domain_matches = (
-                    self.domain.provider_search.filter_matching_domain_results(
+                    self.domain_resolver.filter_matching_domain_results(
                         youtube_results=videos_list
                     )
                 )
@@ -130,7 +132,7 @@ class MediaResolver:
 
                 yt_title = video_info.result.full_title
                 try:
-                    metadata = self.domain.provider_search.main.search_track(yt_title)
+                    metadata = self.domain.provider_search.search_track(yt_title)
                 except SongNotFound:
                     storage.new(
                         query=yt_title, result=Sentinel(), query_type="metadata"

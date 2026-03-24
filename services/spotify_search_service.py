@@ -6,28 +6,32 @@ from typing import Any, TYPE_CHECKING
 
 from engine.persistence_model import storage
 from engine.retry import retry
-from models import SongNotFound, Metadata, PlaylistInfo, SearchProvider, Sentinel, ArtistInfo
-import services
-from services.providers_search import ProvidersSearch
+from models import (
+    SongNotFound,
+    Metadata,
+    PlaylistInfo,
+    SearchProvider,
+    Sentinel,
+    ArtistInfo,
+)
+from utils import search_fallbacks
 
 if TYPE_CHECKING:
     from bootstrap.container import Clients
     from models import MetadataProvider
-    from services import ProvidersSearch
 
 
 class SpotifySearchService(SearchProvider):
-
     def __init__(
         self,
         *,
         metadata: MetadataProvider,
         clients: Clients,
-        providers_search: ProvidersSearch
+        fallback_providers: list[SearchProvider] = [],
     ):
-        self.metadata = metadata
+        self.fallback_providers = fallback_providers
         self.clients = clients
-        self.providers = providers_search
+        self.metadata = metadata
 
     def search_artist(self, artist_query: str) -> ArtistInfo:
         artist_url = "https://open.spotify.com/artist/"
@@ -162,7 +166,7 @@ class SpotifySearchService(SearchProvider):
 
         if not single_result:
             info(f"{query} not found")
-            return self.providers.fallback(query)
+            return search_fallbacks(query=query, providers=self.fallback_providers)
 
         try:
             track_id = single_result["tracks"]["items"][0]["id"]
@@ -188,12 +192,12 @@ class SpotifySearchService(SearchProvider):
 
             if not results:
                 info(f"{query} not found")
-                return self.providers.fallback(query)
+                return search_fallbacks(query=query, providers=self.fallback_providers)
 
             try:
                 album_id = results["albums"]["items"][0]["id"]
             except IndexError:
-                return self.providers.fallback(query)
+                return search_fallbacks(query=query, providers=self.fallback_providers)
 
             # get album search function
             album_url = "https://open.spotify.com/album/" + album_id
@@ -201,7 +205,7 @@ class SpotifySearchService(SearchProvider):
 
             if not album:
                 info(f"{query} not found")
-                return self.providers.fallback(query)
+                return search_fallbacks(query=query, providers=self.fallback_providers)
 
             # get id of first result
             track_id = album["tracks"]["items"][0]["id"]

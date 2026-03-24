@@ -205,7 +205,7 @@ class FileStorage:
                             if value != NOT_FOUND.__dict__
                             else NOT_FOUND
                         )
-                        for key, value in loaded_objects["deezer"].items()
+                        for key, value in loaded_objects["metadata"].items()
                     }
                 else:
                     self.__objects["metadata"] = {}

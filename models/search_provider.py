@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from bootstrap.container import Clients
     from models import Metadata, PlaylistInfo, MetadataProvider
-    from services import ProvidersSearch
 
 
 @dataclass
@@ -26,9 +25,12 @@ class SearchProvider(ABC):
         *,
         metadata: MetadataProvider,
         clients: Clients,
-        providers: ProvidersSearch,
+        fallback_providers: list[SearchProvider] = [],
     ):
-        pass
+        self.fallback_providers = fallback_providers
+        self.clients = clients
+        self.metadata = metadata
+
 
     @abstractmethod
     def search_artist(self, artist_query: str) -> ArtistInfo:

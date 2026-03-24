@@ -194,4 +194,3 @@ class YouTubeUserPlaylist:
             error("Unexpected errors occurred")
             for unexpected in unexpected_errors:
                 error(unexpected)
-

@@ -13,9 +13,9 @@ from models import PlaylistInfo
 
 if TYPE_CHECKING:
     from bootstrap.container import Core, Domain, Clients
+    from app import DomainResolver
     from services.spotify_search_service import SpotifySearchService
     from services.spotify_metadata_service import SpotifyMetadataService
-    from services import ProvidersSearch
 
 
 @dataclass
@@ -35,9 +35,11 @@ class SpotifyPlaylistCompilation:
         domain: Domain,
         clients: Clients,
         metadata: SpotifyMetadataService,
-        providers_search: ProvidersSearch,
+        spotify_search: SpotifySearchService,
+        domain_resolver: DomainResolver,
     ) -> None:
-        self.providers_search = providers_search
+        self.domain_resolver = domain_resolver
+        self.spotify_search = spotify_search
         self.core = core
         self.domain = domain
         self.clients = clients
@@ -55,7 +57,7 @@ class SpotifyPlaylistCompilation:
             essentials_playlist (str | None, optional): A spotify playlist to scrape. Defaults to None.
         """
 
-        artist_search = self.providers_search.main.search_artist(artist)
+        artist_search = self.spotify_search.search_artist(artist)
         artist_name = artist_search.name
         artist_id = artist_search.id
         artist_cover = artist_search.cover
@@ -73,7 +75,7 @@ class SpotifyPlaylistCompilation:
                 for track_id in essentials_playlist_data.ids
                 if (track := self.metadata.get(track_id=track_id))
             ]
-            domain_matches = self.providers_search.filter_matching_domain_results(
+            domain_matches = self.domain_resolver.filter_matching_domain_results(
                 provider_results=scraped_playlist
             )
 
@@ -103,7 +105,7 @@ class SpotifyPlaylistCompilation:
 
         # top tracks
         try:
-            top_tracks = self.providers_search.main.search_artist_top_tracks(
+            top_tracks = self.spotify_search.search_artist_top_tracks(
                 artist_id=artist_id
             )
             all_artist_albums.append(top_tracks)
@@ -134,7 +136,7 @@ class SpotifyPlaylistCompilation:
             # get all tracks of album
             album_url = "https://open.spotify.com/album/" + item["id"]
 
-            all_artist_albums.append(self.providers_search.main.search_album(album_url))
+            all_artist_albums.append(self.spotify_search.search_album(album_url))
 
         return ArtistResult(
             playlist=all_artist_albums, name=artist_name, cover=artist_cover
@@ -157,7 +159,7 @@ class SpotifyPlaylistCompilation:
             raise RuntimeError("No username provided in `.env` file")
         if not cached_likes:
             raise SongNotFound("Spotify likes")
-        domain_matches = self.providers_search.filter_matching_domain_results(
+        domain_matches = self.domain_resolver.filter_matching_domain_results(
             provider_results=list(cached_likes.values())
         )
         return PlaylistInfo(

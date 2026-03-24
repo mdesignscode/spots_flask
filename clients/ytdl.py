@@ -1,5 +1,10 @@
-from typing import Any
-from yt_dlp import YoutubeDL, _Params
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from yt_dlp import YoutubeDL
+
+if TYPE_CHECKING:
+    from yt_dlp import _Params
 
 
 class YtDlpClient:
@@ -49,4 +54,3 @@ class YtDlpClient:
 
     def reset_options(self) -> None:
         self.client_options = self.default_options
-
