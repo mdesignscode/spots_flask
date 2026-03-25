@@ -5,9 +5,8 @@ from math import ceil
 from tenacity import stop_after_delay
 from typing import Any, Literal, cast, overload, TYPE_CHECKING
 
-from engine.persistence_model import storage
-from engine.retry import retry
-from models import (
+from spots.engine import storage, retry
+from spots.models import (
     SongNotFound,
     SearchResponseSingle,
     SearchResponseMultiple,
@@ -18,7 +17,7 @@ from models import (
 
 if TYPE_CHECKING:
     from yt_dlp import _Params
-    from bootstrap.container import Clients
+    from spots.bootstrap.container import Clients
 
 
 class YoutubeSearchService:

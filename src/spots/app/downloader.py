@@ -4,10 +4,10 @@ from hashlib import md5
 from os.path import join
 from typing import TYPE_CHECKING
 
-from models import TitleExistsError, Metadata, YTVideoInfo
+from spots.models import TitleExistsError, Metadata, YTVideoInfo
 
 if TYPE_CHECKING:
-    from bootstrap.container import Core, Clients
+    from spots.bootstrap.container import Core, Clients
 
 
 class Downloader:

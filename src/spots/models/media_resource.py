@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from models.yt_video_info import YTVideoInfo
-from models.metadata import Metadata
 from dataclasses import dataclass
 from typing import Literal, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from models.playlist_info import PlaylistInfo
+    from spots.models import PlaylistInfo, YTVideoInfo, Metadata
 
 
 @dataclass

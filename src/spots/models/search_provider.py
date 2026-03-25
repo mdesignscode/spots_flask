@@ -5,8 +5,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bootstrap.container import Clients
-    from models import Metadata, PlaylistInfo, MetadataProvider
+    from spots.bootstrap.container import Clients
+    from spots.models import Metadata, PlaylistInfo, MetadataProvider
 
 
 @dataclass

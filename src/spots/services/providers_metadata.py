@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from models import MetadataProvider
-from services.deezer_metadata_service import DeezerMetadataService
-from services.spotify_metadata_service import SpotifyMetadataService
+from spots.models import MetadataProvider
+from spots.services import DeezerMetadataService, SpotifyMetadataService
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bootstrap.container import Clients, Core
+    from spots.bootstrap.container import Clients, Core
 
 class ProvidersMetadata:
     def __init__(self, *, clients: Clients, core: Core):

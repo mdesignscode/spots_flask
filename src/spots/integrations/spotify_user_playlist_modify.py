@@ -1,12 +1,13 @@
 from __future__ import annotations
-from logging import info
 
-from engine.retry import retry
+from logging import info
 from tenacity import stop_after_delay
 from typing import TYPE_CHECKING
 
+from spots.engine import retry
+
 if TYPE_CHECKING:
-    from bootstrap.container import Clients
+    from spots.bootstrap.container import Clients
 
 
 class SpotifyUserPlaylistModify:

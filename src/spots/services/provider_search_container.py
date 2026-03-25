@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from services.deezer_search_service import DeezerSearchService
-from services.spotify_search_service import SpotifySearchService
-from typing import TYPE_CHECKING, cast
+from spots.services import DeezerSearchService, SpotifySearchService
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from bootstrap.container import Clients
-    from models import SearchProvider, MetadataProvider
+    from spots.bootstrap.container import Clients
+    from spots.models import SearchProvider, MetadataProvider
 
 
 class ProviderSearchContainer:

@@ -3,10 +3,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, overload, Any
 
-from models.metadata import Metadata
 
 if TYPE_CHECKING:
-    from bootstrap.container import Core, Clients
+    from spots.models import Metadata
+    from spots.bootstrap.container import Core, Clients
 
 
 class MetadataProvider(ABC):

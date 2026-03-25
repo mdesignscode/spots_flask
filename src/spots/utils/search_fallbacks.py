@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from models import SongNotFound
+from spots.models import SongNotFound
 
 if TYPE_CHECKING:
-    from models import Metadata, SearchProvider
+    from spots.models import Metadata, SearchProvider
 
 
 def search_fallbacks(*, query: str, providers: list[SearchProvider]) -> Metadata:

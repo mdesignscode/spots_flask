@@ -43,7 +43,6 @@ src/spots/models/metadata_provider.py
 src/spots/models/playlist_info.py
 src/spots/models/search_provider.py
 src/spots/models/sentinel.py
-src/spots/models/youtube_quota_exceeded.py
 src/spots/models/yt_video_info.py
 src/spots/services/__init__.py
 src/spots/services/deezer_metadata_service.py

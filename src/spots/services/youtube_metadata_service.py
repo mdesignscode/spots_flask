@@ -3,12 +3,11 @@ from __future__ import annotations
 from logging import info
 from typing import TYPE_CHECKING
 
-from models.yt_video_info import YTVideoInfo
-from models import Metadata, SongNotFound
+from spots.models import YTVideoInfo, Metadata, SongNotFound
 
 if TYPE_CHECKING:
-    from bootstrap.container import Core, Clients
-    from models import SearchProvider
+    from spots.bootstrap.container import Core, Clients
+    from spots.models import SearchProvider
 
 
 class YouTubeMetadataService:

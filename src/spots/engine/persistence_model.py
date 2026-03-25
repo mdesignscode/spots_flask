@@ -1,3 +1,4 @@
-from engine.file_storage import FileStorage
+from spots.engine import FileStorage
 
 storage = FileStorage()
+

@@ -1,9 +1,10 @@
-from models.yt_video_info import YTVideoInfo
-from models.metadata import Metadata
-from models.helper_models import ArtistAndTitle
 from html import unescape
 from unicodedata import normalize
 from re import compile, escape, IGNORECASE, search, sub, split
+
+from spots.models.yt_video_info import YTVideoInfo
+from spots.models.metadata import Metadata
+from spots.models.helper_models import ArtistAndTitle
 
 
 class YouTubeExtractor:

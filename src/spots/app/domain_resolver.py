@@ -3,13 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Sequence, overload
 
-from engine import storage
-from models import Metadata, SongNotFound, Sentinel, YTVideoInfo
+from spots.engine import storage
+from spots.models import Metadata, SongNotFound, Sentinel, YTVideoInfo
 
 if TYPE_CHECKING:
-    from bootstrap.container import Core
-    from models import SearchProvider
-    from services import YoutubeSearchService
+    from spots.bootstrap.container import Core
+    from spots.models import SearchProvider
+    from spots.services import YoutubeSearchService
 
 
 @dataclass

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from models.yt_video_info import YTVideoInfo
+    from spots.models import YTVideoInfo
 
 
 @dataclass

@@ -5,11 +5,11 @@ from logging import error, info
 from spotipy.exceptions import SpotifyException
 from typing import Any, overload, TYPE_CHECKING
 
-from engine.persistence_model import storage
-from models import SongNotFound, Metadata, Sentinel, MetadataProvider
+from spots.engine import storage
+from spots.models import SongNotFound, Metadata, Sentinel, MetadataProvider
 
 if TYPE_CHECKING:
-    from bootstrap.container import Core, Clients
+    from spots.bootstrap.container import Core, Clients
 
 
 class SpotifyMetadataService(MetadataProvider):

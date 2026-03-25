@@ -6,14 +6,13 @@ from socket import timeout as SocketTimeout
 from tenacity import stop_after_attempt, wait_exponential
 from typing import TYPE_CHECKING
 
-from engine.persistence_model import storage
-from engine.retry import retry
-from models import SongNotFound, YouTubeQuotaExceeded, Sentinel, YTVideoInfo, Metadata
+from spots.engine import storage, retry
+from spots.models import SongNotFound, YouTubeQuotaExceeded, Sentinel, YTVideoInfo, Metadata
 
 if TYPE_CHECKING:
-    from bootstrap.container import Core, Clients
-    from app.spotify_playlist_compilation import SpotifyPlaylistCompilation
-    from services.youtube_search_service import YoutubeSearchService
+    from spots.bootstrap.container import Core, Clients
+    from spots.app.spotify_playlist_compilation import SpotifyPlaylistCompilation
+    from spots.services.youtube_search_service import YoutubeSearchService
 
 
 class YouTubeUserPlaylist:
@@ -194,3 +193,4 @@ class YouTubeUserPlaylist:
             error("Unexpected errors occurred")
             for unexpected in unexpected_errors:
                 error(unexpected)
+

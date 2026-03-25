@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict, cast, TYPE_CHECKING
 
-from models import (
+from spots.models import (
     Metadata,
     SearchProvider,
     PlaylistInfo,
@@ -10,11 +10,11 @@ from models import (
     MetadataProvider,
     SongNotFound,
 )
-from utils import search_fallbacks
+from spots.utils import search_fallbacks
 
 if TYPE_CHECKING:
-    from bootstrap.container import Clients
-    from models import SearchProvider
+    from spots.bootstrap.container import Clients
+    from spots.models import SearchProvider
 
 
 class DeezerResponseBase(TypedDict):

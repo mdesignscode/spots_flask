@@ -1,6 +1,7 @@
 from tenacity import retry as _retry
 from tenacity import retry_if_exception
-from models.errors import SongNotFound
+
+from spots.models import SongNotFound
 
 
 def is_retryable_exception(exc: BaseException) -> bool:

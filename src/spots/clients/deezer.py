@@ -3,9 +3,9 @@ from requests.exceptions import HTTPError
 from tenacity import stop_after_delay
 from typing import Any, TypedDict, cast
 
-from engine.retry import retry
-from models import SongNotFound, InvalidURL, ArtistInfo
-from utils.fetch import FetchResponseFailure, FetchResponseSuccess, fetch_data
+from spots.engine.retry import retry
+from spots.models import SongNotFound, InvalidURL, ArtistInfo
+from spots.utils.fetch import FetchResponseFailure, FetchResponseSuccess, fetch_data
 
 
 class DeezerResponseBase(TypedDict):

@@ -1,21 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from engine.persistence_model import storage
 from logging import info
-from models.errors import EmptySpotifyLikes, SongNotFound
+from spots.models.errors import EmptySpotifyLikes, SongNotFound
 from spotipy.exceptions import SpotifyException
 from tenacity import stop_after_delay
-from engine.retry import retry
+from spots.engine import retry, storage
 from typing import TYPE_CHECKING
 
-from models import PlaylistInfo
+from spots.models import PlaylistInfo
 
 if TYPE_CHECKING:
-    from bootstrap.container import Core, Domain, Clients
-    from app import DomainResolver
-    from services.spotify_search_service import SpotifySearchService
-    from services.spotify_metadata_service import SpotifyMetadataService
+    from spots.bootstrap.container import Core, Domain, Clients
+    from spots.app import DomainResolver
+    from spots.services.spotify_search_service import SpotifySearchService
+    from spots.services.spotify_metadata_service import SpotifyMetadataService
 
 
 @dataclass

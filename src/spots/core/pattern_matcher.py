@@ -1,16 +1,13 @@
 from __future__ import unicode_literals, annotations
 
 from re import compile, sub, IGNORECASE, VERBOSE
-
-from engine.persistence_model import storage
-from models.errors import SongNotFound
-from models.sentinel import Sentinel
-from models.yt_video_info import YTVideoInfo
-from models.metadata import Metadata
 from typing import TYPE_CHECKING
 
+from spots.engine import storage
+from spots.models import SongNotFound, Sentinel, YTVideoInfo, Metadata
+
 if TYPE_CHECKING:
-    from core.youtube_extractor import YouTubeExtractor
+    from spots.core import YouTubeExtractor
 
 # -----------------------------
 # regex

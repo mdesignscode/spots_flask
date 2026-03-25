@@ -4,9 +4,8 @@ from re import escape, search
 from tenacity import stop_after_delay
 from typing import Any, TYPE_CHECKING
 
-from engine.persistence_model import storage
-from engine.retry import retry
-from models import (
+from spots.engine import retry, storage
+from spots.models import (
     SongNotFound,
     Metadata,
     PlaylistInfo,
@@ -14,11 +13,11 @@ from models import (
     Sentinel,
     ArtistInfo,
 )
-from utils import search_fallbacks
+from spots.utils import search_fallbacks
 
 if TYPE_CHECKING:
-    from bootstrap.container import Clients
-    from models import MetadataProvider
+    from spots.bootstrap.container import Clients
+    from spots.models import MetadataProvider
 
 
 class SpotifySearchService(SearchProvider):

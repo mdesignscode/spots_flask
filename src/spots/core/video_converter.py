@@ -1,11 +1,12 @@
 from logging import error, info
-from models.metadata import Metadata
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from mutagen.id3 import ID3
 from mutagen.id3._frames import APIC, TIT2, TPE1, TRCK, TALB, USLT, TDRL
 from mutagen.mp3 import MP3
 from os import remove
 from requests import get
+
+from spots.models.metadata import Metadata
 
 
 class VideoConverter:

@@ -1,6 +1,10 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
-from models.metadata import Metadata
-from models.yt_video_info import YTVideoInfo
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from spots.models import Metadata, YTVideoInfo
 
 
 @dataclass

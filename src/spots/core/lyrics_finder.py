@@ -5,8 +5,8 @@ from lyricsgenius import Genius
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from clients.secrets_manager import SecretsManager
-    from core.web_scraper import WebScraper
+    from spots.clients import SecretsManager
+    from spots.core import WebScraper
 
 
 class LyricsFinder:

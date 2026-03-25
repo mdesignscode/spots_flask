@@ -3,12 +3,12 @@ from __future__ import annotations
 from logging import error, info
 from typing import Any, cast, overload, TYPE_CHECKING
 
-from engine.persistence_model import storage
-from models import SongNotFound, Metadata, Sentinel, MetadataProvider
-from utils.fetch import fetch_data, FetchResponseFailure, FetchResponseSuccess
+from spots.engine import storage
+from spots.models import SongNotFound, Metadata, Sentinel, MetadataProvider
+from spots.utils import fetch_data, FetchResponseFailure, FetchResponseSuccess
 
 if TYPE_CHECKING:
-    from bootstrap.container import Clients, Core
+    from spots.bootstrap.container import Clients, Core
 
 
 class DeezerMetadataService(MetadataProvider):

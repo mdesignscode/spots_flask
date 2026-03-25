@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
-from typing import Any, Literal
 from requests import get
 from requests.exceptions import Timeout, ConnectionError, RequestException, HTTPError
+from typing import Any, Literal
 
 
 @dataclass

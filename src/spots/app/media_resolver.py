@@ -4,10 +4,8 @@ from logging import info
 from tenacity import stop_after_delay
 from typing import TYPE_CHECKING, Any, cast
 
-from app import DomainResolver
-from engine.persistence_model import storage
-from engine.retry import retry
-from models import (
+from spots.engine import storage, retry
+from spots.models import (
     InvalidURL,
     SongNotFound,
     MediaResourceSingle,
@@ -18,7 +16,8 @@ from models import (
 )
 
 if TYPE_CHECKING:
-    from bootstrap.container import Core, Domain, Clients
+    from spots.bootstrap.container import Core, Domain, Clients
+    from spots.app import DomainResolver
 
 
 class MediaResolver:
