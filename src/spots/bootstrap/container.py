@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from os import makedirs
 
 from spots.app import (
     Downloader,
@@ -46,8 +47,8 @@ class Core:
 
 @dataclass
 class Clients:
-    spotify: SpotifyClient
-    youtube: YouTubeApiClient
+    spotify: SpotifyClient | None
+    youtube: YouTubeApiClient | None
     ytdlp: YtDlpClient
     secrets: SecretsManager
     deezer: DeezerClient
@@ -73,17 +74,29 @@ class App:
 
 class Container:
     def __init__(self):
+        makedirs("./Music", exist_ok=True)
+
         self.core = self._build_core()
         self.clients = self._build_clients()
         self.domain = self._build_domain()
         self.app = self._build_application()
 
     def _build_clients(self) -> Clients:
+        secrets = SecretsManager()
+
+        youtube = None
+        if secrets.read(key="youtube_account_features_available", alt="false").lower() == "true":
+            youtube = YouTubeApiClient(secrets=secrets)
+
+        spotify = None
+        if secrets.read(key="spotify_features_available", alt="false").lower() == "true":
+            spotify = SpotifyClient()
+
         return Clients(
-            spotify=SpotifyClient(),
-            youtube=YouTubeApiClient(),
+            spotify=spotify,
+            youtube=youtube,
             ytdlp=YtDlpClient(),
-            secrets=SecretsManager(),
+            secrets=secrets,
             deezer=DeezerClient(),
         )
 

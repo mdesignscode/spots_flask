@@ -8,7 +8,7 @@ from tenacity import stop_after_delay
 from spots.engine import retry, storage
 from typing import TYPE_CHECKING
 
-from spots.models import PlaylistInfo
+from spots.models import PlaylistInfo, SpotifyUnavailableError
 
 if TYPE_CHECKING:
     from spots.bootstrap.container import Core, Domain, Clients
@@ -112,6 +112,11 @@ class SpotifyPlaylistCompilation:
             pass
 
         # retrieve artist albums
+        if not self.clients.spotify:
+            raise SpotifyUnavailableError(
+                "Spotify client is not configured. Enable Spotify features in your environment."
+            )
+
         result = self.clients.spotify.client.artist_albums(artist_id)
         if not result:
             return ArtistResult(

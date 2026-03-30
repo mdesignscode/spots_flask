@@ -6,10 +6,11 @@ from spotipy.exceptions import SpotifyException
 from typing import Any, overload, TYPE_CHECKING
 
 from spots.engine import storage
-from spots.models import SongNotFound, Metadata, Sentinel, MetadataProvider
+from spots.models import SongNotFound, Metadata, Sentinel, MetadataProvider, SpotifyUnavailableError
 
 if TYPE_CHECKING:
     from spots.bootstrap.container import Core, Clients
+    from spots.clients import SpotifyClient
 
 
 class SpotifyMetadataService(MetadataProvider):
@@ -21,6 +22,13 @@ class SpotifyMetadataService(MetadataProvider):
     ):
         self.clients = clients
         self.core = core
+
+    def _spotify(self) -> SpotifyClient:
+        if not self.clients.spotify:
+            raise SpotifyUnavailableError(
+                "Spotify client is not configured. Enable Spotify features in your environment."
+            )
+        return self.clients.spotify
 
     @overload
     def get(
@@ -59,7 +67,7 @@ class SpotifyMetadataService(MetadataProvider):
         if track_id is not None:
             try:
                 # retrieve track from spotify
-                track = self.clients.spotify.client.track(
+                track = self._spotify().client.track(
                     track_id
                 )
 
@@ -68,8 +76,8 @@ class SpotifyMetadataService(MetadataProvider):
                     if "Invalid access token" in e.msg:
                         raise RuntimeError("Authentication Failed") from e
                     else:
-                        self.clients.spotify.signin()
-                        track = self.clients.spotify.client.track(
+                        self._spotify().signin()
+                        track = self._spotify().client.track(
                             track_id
                         )
                 else:

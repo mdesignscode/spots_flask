@@ -1,5 +1,5 @@
 from spots.models.artist_metadata import ArtistMetadata
-from spots.models.errors import TitleExistsError, InvalidURL, SongNotFound, VersionSkipped, EmptySpotifyLikes, YouTubeQuotaExceeded
+from spots.models.errors import TitleExistsError, InvalidURL, SongNotFound, VersionSkipped, EmptySpotifyLikes, YouTubeQuotaExceeded, SpotifyUnavailableError, YouTubeUnavailableError
 from spots.models.helper_models import ArtistAndTitle, SearchResponseSingle, SearchResponseMultiple
 from spots.models.media_resource import MediaResourceSingle, MediaResourcePlaylist
 from spots.models.metadata import Metadata

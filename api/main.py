@@ -3,7 +3,7 @@
 
 from spots.engine import storage
 from logging import basicConfig, error, info, INFO
-from os import getenv, makedirs
+from os import getenv
 from requests import get
 from server import app
 from spots.clients import SpotifyClient
@@ -24,8 +24,6 @@ if __name__ == "__main__":
 
     if getenv("username"):
         spotify_client.signin()
-
-    makedirs("./Music", exist_ok=True)
 
     storage.reload()
 

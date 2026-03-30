@@ -7,12 +7,13 @@ from tenacity import stop_after_attempt, wait_exponential
 from typing import TYPE_CHECKING
 
 from spots.engine import storage, retry
-from spots.models import SongNotFound, YouTubeQuotaExceeded, Sentinel, YTVideoInfo, Metadata
+from spots.models import SongNotFound, YouTubeQuotaExceeded, Sentinel, YTVideoInfo, Metadata, YouTubeUnavailableError
 
 if TYPE_CHECKING:
     from spots.bootstrap.container import Core, Clients
     from spots.app.spotify_playlist_compilation import SpotifyPlaylistCompilation
     from spots.services.youtube_search_service import YoutubeSearchService
+    from spots.clients import YouTubeApiClient
 
 
 class YouTubeUserPlaylist:
@@ -29,6 +30,13 @@ class YouTubeUserPlaylist:
         self.clients = clients
         self.spotify_playlist_compiler = spotify_playlist_compiler
 
+    def _youtube(self) -> YouTubeApiClient:
+        if not self.clients.youtube:
+            raise YouTubeUnavailableError(
+                "YouTube client is not configured. Enable YouTube features in your environment."
+            )
+        return self.clients.youtube
+
     def get_liked_videos(self, *, max_results=50) -> list[str]:
         """
         Fetch videos from the user's YouTube liked videos playlist.
@@ -40,7 +48,7 @@ class YouTubeUserPlaylist:
         next_page_token = None
 
         while True:
-            request = self.clients.youtube.service.playlistItems().list(
+            request = self._youtube().service.playlistItems().list(
                 part="snippet,contentDetails",
                 playlistId="LL",
                 maxResults=max_results,
@@ -69,7 +77,7 @@ class YouTubeUserPlaylist:
             video_id (str): the id of the video to be added.
         """
         try:
-            self.clients.youtube.service.videos().rate(
+            self._youtube().service.videos().rate(
                 id=video_id, rating="like"
             ).execute()
         except (SocketTimeout, TimeoutError) as e:

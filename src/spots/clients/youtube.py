@@ -1,8 +1,14 @@
+from __future__ import annotations
+
 import os
 import pickle
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from spots.clients import SecretsManager
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
 PICKLE_TOKEN = "./Music/token.pickle"
@@ -22,13 +28,14 @@ class YouTubeApiClient:
     - Adding a video to YouTube likes library
     """
 
-    def __init__(self):
+    def __init__(self, *, secrets: SecretsManager):
         """
         Initialize the YouTubeApiClient.
 
         Sets up the api client.
         """
         self.service = self._build_service()
+        self.secrets_path = secrets.read(key="YOUTUBE_COOKIES_PATH", alt="./Music/cookies.txt")
 
     def _build_service(self):
         """

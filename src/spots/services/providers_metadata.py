@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from spots.models import MetadataProvider
-from spots.services import DeezerMetadataService, SpotifyMetadataService
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -9,6 +8,8 @@ if TYPE_CHECKING:
 
 class ProvidersMetadata:
     def __init__(self, *, clients: Clients, core: Core):
+        from spots.services import DeezerMetadataService, SpotifyMetadataService
+
         media_providers: dict[str, type[MetadataProvider]] = {
             "deezer": DeezerMetadataService,
             "spotify": SpotifyMetadataService,

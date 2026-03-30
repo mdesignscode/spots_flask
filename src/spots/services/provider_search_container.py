@@ -1,41 +1,67 @@
 from __future__ import annotations
 
-from spots.services import DeezerSearchService, SpotifySearchService
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from spots.bootstrap.container import Clients
     from spots.models import SearchProvider, MetadataProvider
 
-
 class ProviderSearchContainer:
     def __init__(self, clients: Clients, metadata: MetadataProvider):
+        from spots.services import DeezerSearchService, SpotifySearchService
+
         self.clients = clients
 
-        # map all providers
-        media_providers: dict[str, type[SearchProvider]] = {
-            "deezer": DeezerSearchService,
-            "spotify": SpotifySearchService,
+        # Define all possible providers with availability checks
+        provider_registry: dict[str, tuple[type[SearchProvider], bool]] = {
+            "deezer": (DeezerSearchService, True),  # always available
+            "spotify": (
+                SpotifySearchService,
+                bool(clients.spotify),  # availability check
+            ),
         }
 
-        # get default provider
-        default_provider = clients.secrets.read(key="main_provider", alt="deezer")
-        provider_cls: type[SearchProvider] = media_providers[default_provider]
-        del media_providers[default_provider]
+        # Filter only available providers
+        available_providers = {
+            name: cls
+            for name, (cls, is_available) in provider_registry.items()
+            if is_available
+        }
 
-        # initiate fallback providers
+        if not available_providers:
+            raise RuntimeError("No search providers available")
+
+        # Resolve default provider safely
+        default_provider = clients.secrets.read(key="main_provider", alt="deezer")
+
+        if default_provider not in available_providers:
+            # fallback to first available provider
+            default_provider = next(iter(available_providers))
+
+        provider_cls = available_providers[default_provider]
+
+        # Remove main from fallback pool
+        fallback_classes = {
+            name: cls
+            for name, cls in available_providers.items()
+            if name != default_provider
+        }
+
+        # Instantiate fallback providers
         fallback_providers = [
-            provider(metadata=metadata, clients=self.clients)
-            for provider in media_providers.values()
+            cls(metadata=metadata, clients=self.clients)
+            for cls in fallback_classes.values()
         ]
 
-        # wire fallback providers
+        # Wire fallbacks (optional, depending on your design)
         for provider in fallback_providers:
             provider.fallback_providers = fallback_providers
 
+        # Instantiate main provider
         self.main = provider_cls(
-            metadata=metadata, clients=self.clients, fallback_providers=fallback_providers
+            metadata=metadata,
+            clients=self.clients,
+            fallback_providers=fallback_providers,
         )
 
-        self.falbacks = fallback_providers
-
+        self.fallbacks = fallback_providers

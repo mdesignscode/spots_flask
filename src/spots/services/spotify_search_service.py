@@ -12,12 +12,15 @@ from spots.models import (
     SearchProvider,
     Sentinel,
     ArtistInfo,
+    SpotifyUnavailableError,
 )
 from spots.utils import search_fallbacks
 
 if TYPE_CHECKING:
+    from spotipy import Spotify
     from spots.bootstrap.container import Clients
     from spots.models import MetadataProvider
+    from spots.clients import SpotifyClient
 
 
 class SpotifySearchService(SearchProvider):
@@ -32,6 +35,13 @@ class SpotifySearchService(SearchProvider):
         self.clients = clients
         self.metadata = metadata
 
+    def _spotify(self) -> Spotify:
+        if not self.clients.spotify:
+            raise SpotifyUnavailableError(
+                "Spotify client is not configured. Enable Spotify features in your environment."
+            )
+        return self.clients.spotify.client
+
     def search_artist(self, artist_query: str) -> ArtistInfo:
         artist_url = "https://open.spotify.com/artist/"
         artist_id = ""
@@ -39,14 +49,14 @@ class SpotifySearchService(SearchProvider):
         # get artist by id
         if artist_url in artist_query:
             artist_id = artist_query.replace(artist_url, "").split("?")[0]
-            result = self.clients.spotify.client.artist(artist_id)
+            result = self._spotify().artist(artist_id)
 
             if not result:
                 raise SongNotFound(artist_query)
 
         else:
             # search for the artist
-            result = self.clients.spotify.client.search(artist_query, 1, type="artist")
+            result = self._spotify().search(artist_query, 1, type="artist")
 
             if not result:
                 raise SongNotFound(artist_query)
@@ -56,14 +66,14 @@ class SpotifySearchService(SearchProvider):
         return result
 
     def search_artist_top_tracks(self, *, artist_id: str) -> PlaylistInfo:
-        artist_details = self.clients.spotify.client.artist(artist_id)
+        artist_details = self._spotify().artist(artist_id)
         if not artist_details:
             raise SongNotFound(artist_id)
 
         artist_name = artist_details["name"]
         artist_cover = artist_details["images"][0]["url"]
 
-        top_tracks_search = self.clients.spotify.client.artist_top_tracks(artist_id)
+        top_tracks_search = self._spotify().artist_top_tracks(artist_id)
         if not top_tracks_search:
             raise SongNotFound(artist_id)
 
@@ -82,7 +92,7 @@ class SpotifySearchService(SearchProvider):
         )
 
     def search_playlist(self, playlist_url: str) -> PlaylistInfo:
-        playlist_result = self.clients.spotify.client.playlist(playlist_url)
+        playlist_result = self._spotify().playlist(playlist_url)
 
         if not playlist_result:
             raise SongNotFound(playlist_url)
@@ -107,7 +117,7 @@ class SpotifySearchService(SearchProvider):
         )
 
     def search_album(self, album_url: str) -> PlaylistInfo:
-        album_result = self.clients.spotify.client.album(album_url)
+        album_result = self._spotify().album(album_url)
         if not album_result:
             raise SongNotFound(album_url)
 
@@ -161,7 +171,7 @@ class SpotifySearchService(SearchProvider):
             return cache
 
         # search for a single
-        single_result = self.clients.spotify.client.search(query)
+        single_result = self._spotify().search(query)
 
         if not single_result:
             info(f"{query} not found")
@@ -187,7 +197,7 @@ class SpotifySearchService(SearchProvider):
         if not artist_match and not search(single_data.title.lower(), query.lower()):
             info("Searching for album version...")
             # get album id of first result
-            results = self.clients.spotify.client.search(query, type="album")
+            results = self._spotify().search(query, type="album")
 
             if not results:
                 info(f"{query} not found")
@@ -200,7 +210,7 @@ class SpotifySearchService(SearchProvider):
 
             # get album search function
             album_url = "https://open.spotify.com/album/" + album_id
-            album = self.clients.spotify.client.album(album_url)
+            album = self._spotify().album(album_url)
 
             if not album:
                 info(f"{query} not found")
