@@ -50,7 +50,9 @@ class YtDlpClient:
 
     @options.setter
     def options(self, extra_options: _Params) -> None:
-        self.options = self.client_options | extra_options
+        self.client_options = self.client_options | extra_options
+        self.client = YoutubeDL(self.client_options)
 
     def reset_options(self) -> None:
         self.client_options = self.default_options
+        self.client = YoutubeDL(self.default_options)

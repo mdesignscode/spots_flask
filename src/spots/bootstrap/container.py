@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from logging import basicConfig, INFO, getLogger
+from os.path import exists
 from os import makedirs
 
 from spots.app import (
@@ -23,6 +25,7 @@ from spots.core import (
     VideoConverter,
     YouTubeExtractor,
 )
+from spots.engine import FileStorage
 from spots.models import MetadataProvider, SearchProvider
 from spots.services import (
     YoutubeSearchService,
@@ -34,6 +37,7 @@ from spots.services import (
 )
 from spots.integrations import SpotifyUserPlaylistModify
 
+logger = getLogger(__name__)
 
 @dataclass
 class Core:
@@ -43,6 +47,7 @@ class Core:
     converter: VideoConverter
     scraper: WebScraper
     extractor: YouTubeExtractor
+    storage: FileStorage
 
 
 @dataclass
@@ -74,12 +79,47 @@ class App:
 
 class Container:
     def __init__(self):
-        makedirs("./Music", exist_ok=True)
+        self.__path = "./.bootstrapped"
 
+        basicConfig(level=INFO)
+
+        logger.info("Bootstrapping app...")
+
+        self.initial_setup()
+
+        logger.info("Setting up core components...")
         self.core = self._build_core()
         self.clients = self._build_clients()
         self.domain = self._build_domain()
         self.app = self._build_application()
+        logger.info("Components setup complete.")
+
+        # cache
+        logger.info("Loading cache into memory...")
+        self.core.storage.cache_file_exists()
+        self.core.storage.reload()
+        logger.info("Cache loaded.")
+
+        logger.info("Bootstrap complete. App ready for use.")
+
+    def initial_setup(self) -> None:
+        if not exists(self.__path):
+            logger.info("Running initial setup...")
+            logger.info("Creating internal files used for tracking downloads...")
+
+            # Music folder
+            makedirs("./Music", exist_ok=True)
+
+            # downloads history
+            logger.info("Creating downloads history file...")
+            history = HistoryManager()
+            history.history_file_exists()
+            logger.info("History file created.")
+
+            with open(self.__path, "w"):
+                pass
+
+            logger.info("Download manager files setup complete.")
 
     def _build_clients(self) -> Clients:
         secrets = SecretsManager()
@@ -106,6 +146,7 @@ class Container:
         extractor = YouTubeExtractor()
 
         return Core(
+            storage=FileStorage(),
             history=HistoryManager(),
             lyrics=LyricsFinder(scraper=scraper, secrets_manager=secrets_manager),
             matcher=PatternMatcher(extractor=extractor),
@@ -115,7 +156,7 @@ class Container:
         )
 
     def _build_domain(self) -> Domain:
-        youtube_search = YoutubeSearchService(clients=self.clients)
+        youtube_search = YoutubeSearchService(clients=self.clients, core=self.core)
 
         provider_metadata = ProvidersMetadata(
             clients=self.clients,
@@ -123,7 +164,7 @@ class Container:
         )
 
         provider_search = ProviderSearchContainer(
-            clients=self.clients, metadata=provider_metadata.metadata
+            clients=self.clients, metadata=provider_metadata.metadata, core=self.core
         )
 
         youtube_metadata = YouTubeMetadataService(
@@ -140,7 +181,7 @@ class Container:
     def _build_application(self) -> App:
         downloader = Downloader(core=self.core, clients=self.clients)
 
-        youtube_search = YoutubeSearchService(clients=self.clients)
+        youtube_search = YoutubeSearchService(clients=self.clients, core=self.core)
         domain_resolver = DomainResolver(
             core=self.core,
             youtube_search=youtube_search,
@@ -160,6 +201,7 @@ class Container:
         spotify_search = SpotifySearchService(
             metadata=spotify_metadata,
             clients=self.clients,
+            core=self.core
         )
         spotify_playlist_compiler = SpotifyPlaylistCompilation(
             core=self.core,
@@ -184,4 +226,3 @@ class Container:
             youtube_user_playlist=youtube_user_playlist,
             domain_resolver=domain_resolver,
         )
-

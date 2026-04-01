@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from logging import error, info
+from logging import getLogger
 from spotipy.exceptions import SpotifyException
 from typing import Any, overload, TYPE_CHECKING
 
@@ -12,6 +12,8 @@ if TYPE_CHECKING:
     from spots.bootstrap.container import Core, Clients
     from spots.clients import SpotifyClient
 
+
+logger = getLogger(__name__)
 
 class SpotifyMetadataService(MetadataProvider):
     def __init__(
@@ -46,7 +48,7 @@ class SpotifyMetadataService(MetadataProvider):
         track_id: str | None = None,
         search_result: dict[str, Any] | None = None,
     ) -> Metadata:
-        info("Searching for metadata on Spotify...")
+        logger.info("Searching for metadata on Spotify...")
 
         if track_id is not None:
             query_id = track_id
@@ -81,7 +83,7 @@ class SpotifyMetadataService(MetadataProvider):
                             track_id
                         )
                 else:
-                    error(f"Unexpected error occurred when retrieving Spotify metadata")
+                    logger.error(f"Unexpected error occurred when retrieving Spotify metadata")
                     raise RuntimeError(
                         "Unhandled error in get"
                     ) from e

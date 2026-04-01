@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-from logging import error, info
+from logging import getLogger
 from typing import Any, cast, overload, TYPE_CHECKING
 
-from spots.engine import storage
 from spots.models import SongNotFound, Metadata, Sentinel, MetadataProvider
 from spots.utils import fetch_data, FetchResponseFailure, FetchResponseSuccess
 
 if TYPE_CHECKING:
     from spots.bootstrap.container import Clients, Core
 
+
+logger = getLogger(__name__)
 
 class DeezerMetadataService(MetadataProvider):
     def __init__(
@@ -35,7 +36,7 @@ class DeezerMetadataService(MetadataProvider):
         track_id: str | None = None,
         search_result: dict[str, Any] | None = None,
     ) -> Metadata:
-        info("Searching for metadata on Deezer...")
+        logger.info("Searching for metadata on Deezer...")
 
         if track_id is not None:
             query_id = track_id
@@ -45,8 +46,8 @@ class DeezerMetadataService(MetadataProvider):
             raise ValueError("Either track_id or search_result must be provided")
 
         # check cache first
-        url = "https://open.spotify.com/track/" + query_id
-        cache = storage.get(query=url, query_type="metadata")
+        url = "https://open.deezer.com/track/" + query_id
+        cache = self.core.storage.get(query=url, query_type="metadata")
         if isinstance(cache, Sentinel):
             raise SongNotFound(query_id)
         elif isinstance(cache, Metadata):
@@ -86,7 +87,7 @@ class DeezerMetadataService(MetadataProvider):
         try:
             lyrics = self.core.lyrics.get_lyrics(title=track_name, artist=artist_name)
         except Exception as e:
-            error(f"Error occured while searching for lyrics", e)
+            logger.error(f"Error occurred while searching for lyrics", e)
             lyrics = ""
 
         metadata = Metadata(
@@ -102,5 +103,6 @@ class DeezerMetadataService(MetadataProvider):
             artist_cover=artist_info["picture"],
             artist_id=artist_info["id"],
         )
+        self.core.storage.new(query=url, result=metadata, query_type="metadata")
         return metadata
 

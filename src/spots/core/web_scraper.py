@@ -1,8 +1,11 @@
 from dataclasses import dataclass
 from bs4 import BeautifulSoup, Comment, Tag
-from logging import info
+from logging import getLogger
 from re import search
 from requests import get
+
+
+logger = getLogger(__name__)
 
 @dataclass
 class ScrapedResult:
@@ -25,7 +28,7 @@ def get_element_by_comment(soup: BeautifulSoup, comment_text: str):
 class WebScraper:
     def scrape_azlyrics(self, *, artist: str, title: str):
 
-        info("Searching for lyrics on AZLyrics")
+        logger.info("Searching for lyrics on AZLyrics")
         artist = artist.lower().replace(" ", "")
         title = title.lower().replace(" ", "")
 
@@ -41,7 +44,7 @@ class WebScraper:
         if not (search("spotify", url) and search("playlist", url)):
             raise TypeError("Please provide a valid Spotify playlist url")
 
-        info("Scraping spotify playlist")
+        logger.info("Scraping spotify playlist")
 
         response = get(url)
         soup = BeautifulSoup(response.text, "html.parser")

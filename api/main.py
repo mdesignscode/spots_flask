@@ -2,13 +2,20 @@
 """Spots Web App"""
 
 from spots.engine import storage
-from logging import basicConfig, error, info, INFO
+from logging import getLogger
 from os import getenv
 from requests import get
 from server import app
 from spots.clients import SpotifyClient
 
-basicConfig(level=INFO)
+
+
+# -----------------------------
+# logging setup
+# -----------------------------
+
+logger = getLogger(__name__)
+
 
 
 if __name__ == "__main__":
@@ -16,7 +23,7 @@ if __name__ == "__main__":
     try:
         get("https://www.google.com", timeout=10)
     except:
-        error("Network error. Check your internet connection.")
+        logger.error("Network error. Check your internet connection.")
         quit()
 
     # sign user in
@@ -29,7 +36,7 @@ if __name__ == "__main__":
 
     port = getenv("flask_port", "5000")
 
-    info(f"Serving Spots on port {port}")
+    logger.debug(f"Serving Spots on port {port}")
 
     app.run(port=int(port), debug=False)
 

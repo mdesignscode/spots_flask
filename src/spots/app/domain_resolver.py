@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Sequence, overload
 
-from spots.engine import storage
 from spots.models import Metadata, SongNotFound, Sentinel, YTVideoInfo
 
 if TYPE_CHECKING:
@@ -72,10 +71,10 @@ class DomainResolver:
                         video_title
                     )
                 except SongNotFound:
-                    storage.new(
+                    self.core.storage.new(
                         query=video_title, result=Sentinel(), query_type="metadata"
                     )
-                    storage.new(
+                    self.core.storage.new(
                         query=video_title, result=Sentinel(), query_type="youtube"
                     )
                     continue
@@ -84,25 +83,25 @@ class DomainResolver:
                     video_info=video, metadata=spotify_search_result
                 )
                 if not tracks_match:
-                    storage.new(
+                    self.core.storage.new(
                         query=video_title, result=Sentinel(), query_type="metadata"
                     )
-                    storage.new(
+                    self.core.storage.new(
                         query=video_title, result=Sentinel(), query_type="youtube"
                     )
                     continue
                 else:
-                    storage.new(
+                    self.core.storage.new(
                         query=video_title,
                         result=spotify_search_result,
                         query_type="metadata",
                     )
-                    storage.new(query=video_title, result=video, query_type="youtube")
+                    self.core.storage.new(query=video_title, result=video, query_type="youtube")
                     provider_playlist.append(spotify_search_result)
                     youtube_videos.append(video)
 
                 if (index % 10 == 0) or index == (len(youtube_results) - 1):
-                    storage.save()
+                    self.core.storage.save()
 
         if provider_results is not None:
             for track in provider_results:
@@ -116,10 +115,10 @@ class DomainResolver:
                         query=provider_title, is_general_search=True
                     )
                 except SongNotFound:
-                    storage.new(
+                    self.core.storage.new(
                         query=provider_title, result=Sentinel(), query_type="metadata"
                     )
-                    storage.new(
+                    self.core.storage.new(
                         query=provider_title, result=Sentinel(), query_type="youtube"
                     )
                     continue
@@ -138,12 +137,12 @@ class DomainResolver:
                             search_results=youtube_search_results.result, metadata=track
                         )
                     except SongNotFound:
-                        storage.new(
+                        self.core.storage.new(
                             query=provider_title,
                             result=Sentinel(),
                             query_type="metadata",
                         )
-                        storage.new(
+                        self.core.storage.new(
                             query=provider_title,
                             result=Sentinel(),
                             query_type="youtube",

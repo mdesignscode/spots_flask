@@ -1,5 +1,6 @@
 from __future__ import unicode_literals, annotations
 
+from logging import getLogger
 from re import compile, sub, IGNORECASE, VERBOSE
 from typing import TYPE_CHECKING
 
@@ -10,15 +11,21 @@ if TYPE_CHECKING:
     from spots.core import YouTubeExtractor
 
 # -----------------------------
+# logging setup
+# -----------------------------
+
+logger = getLogger(__name__)
+
+# -----------------------------
 # regex
 # -----------------------------
 
 FEAT_PATTERN = compile(
     r"""
-    (\(|\[)?                  # optional opening bracket
+    (\(|\[)?
     \b(feat|ft|featuring)\b
-    [\s\.:,-]*.*               # everything after feat
-    (\)|\])?                  # optional closing bracket
+    [\s\.:,-]*.*
+    (\)|\])?
     """,
     flags=IGNORECASE | VERBOSE,
 )
@@ -63,25 +70,44 @@ BAD_UPLOADER_KEYWORDS = {
 
 
 def strip_features(text: str) -> str:
-    return sub(FEAT_PATTERN, "", text)
+    cleaned = sub(FEAT_PATTERN, "", text)
+    logger.debug("strip_features: '%s' -> '%s'", text, cleaned)
+    return cleaned
 
 
 def tokenize(text: str) -> set[str]:
+    original = text
     text = text.lower()
     text = strip_features(text)
     tokens = NON_WORD_PATTERN.sub(" ", text).split()
-    return {t for t in tokens if t not in STOPWORDS}
+    filtered = {t for t in tokens if t not in STOPWORDS}
+
+    logger.debug(
+        "tokenize: original='%s', tokens=%s, filtered=%s",
+        original,
+        tokens,
+        filtered,
+    )
+
+    return filtered
 
 
 def token_similarity(a: set[str], b: set[str]) -> float:
     if not a or not b:
+        logger.debug("token_similarity: empty tokens -> 0.0")
         return 0.0
-    return len(a & b) / max(len(a), len(b))
+
+    score = len(a & b) / max(len(a), len(b))
+    logger.debug("token_similarity: %s vs %s -> %.3f", a, b, score)
+    return score
 
 
 def uploader_penalty(uploader: str) -> float:
-    uploader = uploader.lower()
-    return 0.35 if any(k in uploader for k in BAD_UPLOADER_KEYWORDS) else 0.0
+    uploader_lower = uploader.lower()
+    penalty = 0.35 if any(k in uploader_lower for k in BAD_UPLOADER_KEYWORDS) else 0.0
+
+    logger.debug("uploader_penalty: '%s' -> %.2f", uploader, penalty)
+    return penalty
 
 
 def artist_in_title_or_uploader(
@@ -89,7 +115,16 @@ def artist_in_title_or_uploader(
 ) -> bool:
     sp_tokens = tokenize(sp_artist)
     yt_tokens = tokenize(yt_title) | tokenize(yt_uploader)
-    return bool(sp_tokens & yt_tokens)
+    result = bool(sp_tokens & yt_tokens)
+
+    logger.debug(
+        "artist_in_title_or_uploader: sp=%s, yt=%s -> %s",
+        sp_tokens,
+        yt_tokens,
+        result,
+    )
+
+    return result
 
 
 # -----------------------------
@@ -111,8 +146,14 @@ class PatternMatcher:
 
         sp_artist = metadata.artist or ""
         sp_title = metadata.title or ""
-        # Artist - Title ft Artsit two
-        # [artist, title, artist two]
+
+        logger.debug(
+            "Matching track: YT(title='%s', uploader='%s') vs SP(title='%s', artist='%s')",
+            yt_title,
+            yt_artist,
+            sp_title,
+            sp_artist,
+        )
 
         yt_title_tokens = tokenize(yt_title)
         sp_title_tokens = tokenize(sp_title)
@@ -127,15 +168,31 @@ class PatternMatcher:
 
         final_score = 0.6 * title_score + 0.3 * artist_score - penalty
 
+        logger.debug(
+            "Scores -> title: %.3f, artist: %.3f, penalty: %.2f, final: %.3f",
+            title_score,
+            artist_score,
+            penalty,
+            final_score,
+        )
+
         title_dominant_match = title_score >= 0.60 and artist_in_title_or_uploader(
             sp_artist, yt_title, yt_artist
         )
 
         score_based_match = final_score >= self.FINAL_THRESHOLD and (
-            title_score >= self.TITLE_THRESHOLD or artist_score >= self.ARTIST_THRESHOLD
+            title_score >= self.TITLE_THRESHOLD
+            or artist_score >= self.ARTIST_THRESHOLD
         )
 
         is_match = title_dominant_match or score_based_match
+
+        logger.debug(
+            "Decision -> title_dominant: %s, score_based: %s, final_match: %s",
+            title_dominant_match,
+            score_based_match,
+            is_match,
+        )
 
         return is_match
 
@@ -143,19 +200,28 @@ class PatternMatcher:
         self, *, search_results: list[YTVideoInfo], metadata: Metadata
     ) -> YTVideoInfo:
         query = f"{metadata.artist} - {metadata.title}"
+        logger.info("Searching best match for query: '%s'", query)
+
         cache = storage.get(query=query, query_type="youtube")
         if cache:
+            logger.info("Cache hit for query: '%s'", query)
             return cache
 
-        for result in search_results:
+        for idx, result in enumerate(search_results):
+            logger.debug("#" * 50)
+            logger.debug("Evaluating result #%d: %s", idx + 1, result.title)
+
             title_and_artist = self.extractor.extract_artist_and_title(
                 video_info=result, metadata=metadata
             )
             result.full_title = title_and_artist
+
             if self.match_tracks(video_info=result, metadata=metadata):
+                logger.info("Match found: '%s'", result.title)
                 storage.new(query=query, result=result, query_type="youtube")
+                logger.debug("#" * 50)
                 return result
 
+        logger.warning("No match found for query: '%s'", query)
         storage.new(query=query, result=Sentinel(), query_type="youtube")
         raise SongNotFound(query)
-

@@ -12,3 +12,5 @@ yt_cache
 cookies.txt
 .env
 
+# setup files
+.bootstrapped

@@ -3,14 +3,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from spots.bootstrap.container import Clients
+    from spots.bootstrap.container import Clients, Core
     from spots.models import SearchProvider, MetadataProvider
 
 class ProviderSearchContainer:
-    def __init__(self, clients: Clients, metadata: MetadataProvider):
+    def __init__(self, clients: Clients, metadata: MetadataProvider, core: Core):
         from spots.services import DeezerSearchService, SpotifySearchService
-
-        self.clients = clients
 
         # Define all possible providers with availability checks
         provider_registry: dict[str, tuple[type[SearchProvider], bool]] = {
@@ -49,7 +47,7 @@ class ProviderSearchContainer:
 
         # Instantiate fallback providers
         fallback_providers = [
-            cls(metadata=metadata, clients=self.clients)
+            cls(metadata=metadata, clients=clients, core=core)
             for cls in fallback_classes.values()
         ]
 
@@ -60,7 +58,8 @@ class ProviderSearchContainer:
         # Instantiate main provider
         self.main = provider_cls(
             metadata=metadata,
-            clients=self.clients,
+            clients=clients,
+            core=core,
             fallback_providers=fallback_providers,
         )
 

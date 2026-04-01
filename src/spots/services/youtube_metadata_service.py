@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from logging import info
+from logging import getLogger
 from typing import TYPE_CHECKING
 
 from spots.models import YTVideoInfo, Metadata, SongNotFound
@@ -9,6 +9,8 @@ if TYPE_CHECKING:
     from spots.bootstrap.container import Core, Clients
     from spots.models import SearchProvider
 
+
+logger = getLogger(__name__)
 
 class YouTubeMetadataService:
 
@@ -31,7 +33,7 @@ class YouTubeMetadataService:
         Returns:
             Metadata: the metadata of youtube song
         """
-        info(f"Retrieving metadata for YouTube video: {video_info.title}")
+        logger.info(f"Retrieving metadata for YouTube video: {video_info.title}")
 
         # get cover from static folder
         static_cover_name = self.clients.secrets.read(
@@ -43,7 +45,7 @@ class YouTubeMetadataService:
         youtube_url = f"https://youtube.com/watch?v={video_info.id}"
 
         try:
-            info("Searching for metadata on Spotify")
+            logger.info("Searching for metadata from Provider")
             search_result = self.search.search_track(search_title)
         except SongNotFound:
             spotify_title = self.core.extractor.remove_odd_keywords(video_info.title)

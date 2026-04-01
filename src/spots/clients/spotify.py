@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from logging import error, info
+from logging import getLogger
 from os import getenv
 from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyClientCredentials
@@ -8,6 +8,8 @@ from spotipy.util import prompt_for_user_token
 
 
 load_dotenv()
+
+logger = getLogger(__name__)
 
 DEFAULT_USER_SCOPE = "user-library-read"
 
@@ -40,7 +42,7 @@ class SpotifyClient:
             self.signin()
             user = self.client.current_user()
         except SpotifyException as e:
-            error(f"An error occured while signin user in::\n\t{e.msg}")
+            logger.error(f"An error occured while signin user in::\n\t{e.msg}")
 
         if user:
             return user["display_name"]
@@ -52,12 +54,12 @@ class SpotifyClient:
         # sign user in if username present in env
         username = getenv("username")
         if not username:
-            info("Set Spotify `username` in `.env`")
+            logger.info("Set Spotify `username` in `.env`")
             raise Exception("No `username` declared in environment variables")
 
         scope = getenv("scope") or DEFAULT_USER_SCOPE
 
-        info(f"Signing in to {username} on Spotify with scope: {scope}")
+        logger.info(f"Signing in to {username} on Spotify with scope: {scope}")
 
         try:
             # throws error if user not signed in
@@ -70,7 +72,7 @@ class SpotifyClient:
                 raise
 
         if token:
-            info("Signed in")
+            logger.info("Signed in")
             self.client = Spotify(auth=token)
 
             return

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from logging import error, info
+from logging import getLogger
 from math import ceil
 from tenacity import stop_after_delay
 from typing import Any, Literal, cast, overload, TYPE_CHECKING
 
-from spots.engine import storage, retry
+from spots.engine import retry
 from spots.models import (
     SongNotFound,
     SearchResponseSingle,
@@ -17,14 +17,17 @@ from spots.models import (
 
 if TYPE_CHECKING:
     from yt_dlp import _Params
-    from spots.bootstrap.container import Clients
+    from spots.bootstrap.container import Clients, Core
 
+
+logger = getLogger(__name__)
 
 class YoutubeSearchService:
     """Responsible for searching for query on YouTube"""
 
-    def __init__(self, *, clients: Clients):
+    def __init__(self, *, clients: Clients, core: Core):
         self.clients = clients
+        self.core = core
 
     def get_video_size(self, data: dict[str, Any]) -> int:
         size = data.get("filesize") or data.get("filesize_approx")
@@ -43,7 +46,7 @@ class YoutubeSearchService:
                 link, download=False
             )
         except Exception as e:
-            error(str(e))
+            logger.error(str(e))
             raise
 
         if not playlist_search:
@@ -87,7 +90,7 @@ class YoutubeSearchService:
     def video_search(
         self, *, query, is_general_search=True
     ) -> SearchResponseSingle | SearchResponseMultiple:
-        cache = storage.get(query=query, query_type="youtube")
+        cache = self.core.storage.get(query=query, query_type="youtube")
         if isinstance(cache, Sentinel):
             raise SongNotFound(query)
         elif isinstance(cache, YTVideoInfo):
@@ -103,11 +106,11 @@ class YoutubeSearchService:
             )
 
             if not search_result:
-                storage.new(query=query, result=Sentinel(), query_type="youtube")
+                self.core.storage.new(query=query, result=Sentinel(), query_type="youtube")
                 raise SongNotFound(query)
 
             if is_general_search and not search_result.get("entries"):
-                storage.new(query=query, result=Sentinel(), query_type="youtube")
+                self.core.storage.new(query=query, result=Sentinel(), query_type="youtube")
                 raise SongNotFound(query)
 
             search_result = cast(dict[str, Any], search_result)
@@ -150,7 +153,7 @@ class YoutubeSearchService:
         Returns:
             List[Metadata]: A list of songs by `artist` found on YT
         """
-        info(f"[Search Artist on YouTube] Searching for {artist}'s songs on YT")
+        logger.info(f"[Search Artist on YouTube] Searching for {artist}'s songs on YT")
 
         ydl_opts: _Params = {
             "quiet": True,
@@ -169,7 +172,7 @@ class YoutubeSearchService:
 
         playlist_len = len(search_results["entries"])
         for index, entry in enumerate(search_results["entries"]):
-            info(
+            logger.info(
                 f"[Search Artist on YouTube] Searching for track {index + 1}/{playlist_len} on YouTube..."
             )
             title = entry.get("title")
@@ -184,7 +187,7 @@ class YoutubeSearchService:
                     video_record[title] = metadata.result
 
                     if (index % 10 == 0) or (index == (playlist_len - 1)):
-                        storage.save()
+                        self.core.storage.save()
 
                 except SongNotFound:
                     continue
@@ -194,8 +197,8 @@ class YoutubeSearchService:
             self.clients.ytdlp.reset_options()
 
             artist_playlist = list(video_record.values())
-            storage.new(query=artist, result=artist_playlist, query_type="artist")
+            self.core.storage.new(query=artist, result=artist_playlist, query_type="artist")
 
-            storage.save()
+            self.core.storage.save()
 
             return artist_playlist

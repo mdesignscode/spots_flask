@@ -3,11 +3,11 @@ from os import path
 
 class HistoryManager:
     def __init__(self):
-        self.history_file = "./Music/.spots_download_history.txt"
+        self.__history_file = "./Music/.spots_download_history.txt"
 
-        # Check if the file exists, otherwise create it
-        if not path.isfile(self.history_file):
-            with open(self.history_file, "w", newline=""):
+    def history_file_exists(self):
+        if not path.isfile(self.__history_file):
+            with open(self.__history_file, "w", newline=""):
                 pass
 
     def read(self, title: str) -> bool:
@@ -19,7 +19,7 @@ class HistoryManager:
 
         title_exists = False
 
-        with open(self.history_file, "r") as file:
+        with open(self.__history_file, "r") as file:
             history = file.read().split("\n")
             for song in history:
                 if title == song:
@@ -33,6 +33,6 @@ class HistoryManager:
         Args:
             title (str, optional): The title to be added.
         """
-        with open(self.history_file, "a", newline="") as file:
+        with open(self.__history_file, "a", newline="") as file:
             file.write(f"{title}\n")
 

@@ -10,8 +10,8 @@ if TYPE_CHECKING:
 @dataclass
 class MediaResourceSingle:
     resource_type: Literal["single"]
-    metadata: Metadata | None
-    video_info: YTVideoInfo | None
+    metadata: Metadata
+    video_info: YTVideoInfo
 
 @dataclass
 class MediaResourcePlaylist:

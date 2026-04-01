@@ -46,9 +46,9 @@ class Downloader:
             raise TitleExistsError(filename)
 
         download_path = join(
-            "Music", directory_path, f"{filename}.{video_info.audio_ext}"
+            "./Music", directory_path, f"{filename}.{video_info.audio_ext}"
         )
-        converted_path = join("Music", directory_path, f"{filename}.mp3")
+        converted_path = join("./Music", directory_path, f"{filename}.mp3")
 
         # set template for download titles
         self.clients.ytdlp.options = {"outtmpl": download_path}

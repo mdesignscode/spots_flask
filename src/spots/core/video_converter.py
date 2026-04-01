@@ -1,4 +1,4 @@
-from logging import error, info
+from logging import getLogger
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from mutagen.id3 import ID3
 from mutagen.id3._frames import APIC, TIT2, TPE1, TRCK, TALB, USLT, TDRL
@@ -8,6 +8,8 @@ from requests import get
 
 from spots.models.metadata import Metadata
 
+
+logger = getLogger(__name__)
 
 class VideoConverter:
     """
@@ -29,7 +31,7 @@ class VideoConverter:
     - Adding successful downloads to the download history
     """
 
-    def update_metadata(self, *, audio_path: str, metadata: Metadata) -> None:
+    def update_metadata(self, *, audio_path: str, metadata: Metadata) -> bool:
         """
         Update the ID3 metadata of an MP3 file.
 
@@ -43,7 +45,7 @@ class VideoConverter:
         Raises:
             FileNotFoundError: If the audio file does not exist.
         """
-        info("Updating metadata")
+        logger.info("Updating metadata")
 
         try:
             audio = MP3(audio_path, ID3=ID3)
@@ -99,8 +101,10 @@ class VideoConverter:
             # Save changes
             audio.save(audio_path)
 
+            return True
+
         except FileNotFoundError as exc:
-            error(f"{audio_path} not found...")
+            logger.error(f"{audio_path} not found...")
             raise exc
 
     def convert_to_mp3(
@@ -125,7 +129,7 @@ class VideoConverter:
             metadata (Metadata): Metadata to apply to the converted MP3 file.
 
         Returns:
-            bool: True indicates a succesful download
+            bool: True indicates a successful download
         """
         try:
             # Load the audio clip
@@ -141,6 +145,6 @@ class VideoConverter:
             return True
 
         except FileNotFoundError:
-            error(f"{old_file} not found...")
+            logger.error(f"{old_file} not found...")
             return False
 

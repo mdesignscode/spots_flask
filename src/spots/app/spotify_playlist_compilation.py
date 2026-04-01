@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from logging import info
+from logging import getLogger
 from spots.models.errors import EmptySpotifyLikes, SongNotFound
 from spotipy.exceptions import SpotifyException
 from tenacity import stop_after_delay
-from spots.engine import retry, storage
+from spots.engine import retry
 from typing import TYPE_CHECKING
 
 from spots.models import PlaylistInfo, SpotifyUnavailableError
@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     from spots.services.spotify_search_service import SpotifySearchService
     from spots.services.spotify_metadata_service import SpotifyMetadataService
 
+
+logger = getLogger(__name__)
 
 @dataclass
 class ArtistResult:
@@ -156,7 +158,7 @@ class SpotifyPlaylistCompilation:
         Raises:
             EmptySpotifyLikes: When no likes returned
         """
-        cached_likes = storage.get_spotify_likes()
+        cached_likes = self.core.storage.get_spotify_likes()
         cover = "avatar.jpg"
         username = self.clients.secrets.read(key="username")
         if not username:
@@ -174,7 +176,7 @@ class SpotifyPlaylistCompilation:
         )
 
         # NOTE: Spotify now requires a paid subscription to use the API
-        info("Searching for user saved tracks...")
+        logger.info("Searching for user saved tracks...")
         limit = 50
         user_tracks = None
 

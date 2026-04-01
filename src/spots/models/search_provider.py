@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from spots.bootstrap.container import Clients
+    from spots.bootstrap.container import Clients, Core
     from spots.models import Metadata, PlaylistInfo, MetadataProvider
 
 
@@ -25,6 +25,7 @@ class SearchProvider(ABC):
         *,
         metadata: MetadataProvider,
         clients: Clients,
+        core: Core,
         fallback_providers: list[SearchProvider] = [],
     ):
         self.fallback_providers = fallback_providers

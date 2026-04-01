@@ -1,16 +1,17 @@
-from logging import info
+from logging import getLogger
 from spots.bootstrap import Container
 from flask import Blueprint, request, jsonify
 from typing import Any, cast
 
 from spots.clients import SecretsManager
-from spots.engine import storage
 from spots.models import Metadata, SongNotFound, TitleExistsError, YTVideoInfo
 
 
 blueprint = Blueprint("download", __name__, url_prefix="/download")
 
 bootstrapper = Container()
+
+logger = getLogger(__name__)
 
 @blueprint.route("/saved", methods=["POST"])
 def download_saved_tracks():
@@ -28,7 +29,7 @@ def download_saved_tracks():
     for index, track in enumerate(
         zip(saved_tracks.provider_metadata, saved_tracks.youtube_metadata)
     ):
-        info(f"Downloading track {index + 1}/{len(saved_tracks.provider_metadata)}")
+        logger.info(f"Downloading track {index + 1}/{len(saved_tracks.provider_metadata)}")
 
         video_info = track[1]
         metadata = track[0]
@@ -40,7 +41,7 @@ def download_saved_tracks():
         except SongNotFound as e:
             exceptions.append(str(e))
 
-    storage.save()
+    bootstrapper.core.storage.save()
 
     return jsonify(
         {

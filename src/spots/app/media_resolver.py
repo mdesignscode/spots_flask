@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from logging import info
+from logging import getLogger
 from tenacity import stop_after_delay
 from typing import TYPE_CHECKING, Any, cast
 
-from spots.engine import storage, retry
+from spots.engine import retry
 from spots.models import (
     InvalidURL,
     SongNotFound,
@@ -19,6 +19,8 @@ if TYPE_CHECKING:
     from spots.bootstrap.container import Core, Domain, Clients
     from spots.app import DomainResolver
 
+
+logger = getLogger(__name__)
 
 class MediaResolver:
     def __init__(self, core: Core, domain: Domain, clients: Clients, domain_resolver: DomainResolver) -> None:
@@ -43,7 +45,7 @@ class MediaResolver:
             # single
             if "track" in url:
                 # retrieve Spotify data
-                info("Resource type: single")
+                logger.info("Resource type: single")
 
                 track_id = url.split("/")[-1]
                 metadata = self.domain.provider_metadata.get(track_id=track_id)
@@ -63,7 +65,7 @@ class MediaResolver:
                 )
             # playlist
             else:
-                info("Resource type: playlist")
+                logger.info("Resource type: playlist")
                 playlist_info = self.domain.provider_search.search_playlist(url)
 
                 return MediaResourcePlaylist(
@@ -72,10 +74,10 @@ class MediaResolver:
 
         # process youtube link
         elif "youtu" in url:
-            info("URL type: YouTube")
+            logger.info("URL type: YouTube")
             # playlist
             if "playlist" in url:
-                info("Resource type: playlist")
+                logger.info("Resource type: playlist")
                 playlist_search = self.clients.ytdlp.client.extract_info(
                     url, download=False
                 )
@@ -116,13 +118,13 @@ class MediaResolver:
                     resource_type="playlist", playlist_info=playlist_info
                 )
             else:
-                info("Resource type: single")
+                logger.info("Resource type: single")
 
                 video_info = self.domain.youtube_search.video_search(
                     query=url, is_general_search=False
                 )
                 if video_info.is_cached:
-                    cached_metadata = storage.get(query=url, query_type="metadata")
+                    cached_metadata = self.core.storage.get(query=url, query_type="metadata")
                     return MediaResourceSingle(
                         resource_type="single",
                         metadata=cached_metadata,
@@ -133,24 +135,24 @@ class MediaResolver:
                 try:
                     metadata = self.domain.provider_search.search_track(yt_title)
                 except SongNotFound:
-                    storage.new(
+                    self.core.storage.new(
                         query=yt_title, result=Sentinel(), query_type="metadata"
                     )
-                    storage.new(query=yt_title, result=Sentinel(), query_type="youtube")
+                    self.core.storage.new(query=yt_title, result=Sentinel(), query_type="youtube")
                     raise
 
                 tracks_match = self.core.matcher.match_tracks(
                     metadata=metadata, video_info=video_info.result
                 )
                 if not tracks_match:
-                    storage.new(
+                    self.core.storage.new(
                         query=yt_title, result=Sentinel(), query_type="metadata"
                     )
-                    storage.new(query=yt_title, result=Sentinel(), query_type="youtube")
+                    self.core.storage.new(query=yt_title, result=Sentinel(), query_type="youtube")
                     raise SongNotFound(yt_title)
                 else:
-                    storage.new(query=yt_title, result=metadata, query_type="metadata")
-                    storage.new(
+                    self.core.storage.new(query=yt_title, result=metadata, query_type="metadata")
+                    self.core.storage.new(
                         query=yt_title, result=video_info.result, query_type="youtube"
                     )
                     return MediaResourceSingle(

@@ -1,12 +1,19 @@
 from json import load, dump
 from json.decoder import JSONDecodeError
-from logging import info
+from logging import getLogger
+from os.path import exists
 from pathlib import Path
 from shutil import move
 from tempfile import NamedTemporaryFile
 from typing import Any, Literal, Optional, TypedDict, Sequence, overload
 
 from spots.models import SongNotFound, Metadata, Sentinel, YTVideoInfo
+
+# -----------------------------
+# logging setup
+# -----------------------------
+
+logger = getLogger(__name__)
 
 
 TMetadataCache = dict[str, Metadata | Sentinel]
@@ -67,6 +74,19 @@ class FileStorage:
 
         if uploader is not None:
             record.uploader = uploader
+
+    def cache_file_exists(self) -> None:
+        if not exists(self.__file_path):
+            objects = {
+                "metadata": {},
+                "artist": {},
+                "youtube": {},
+                "yt_likes": {},
+                "spotify_likes": {},
+            }
+
+            with open(self.__file_path, "w") as f:
+                dump(objects, f)
 
     def get_spotify_likes(self) -> TMetadataCache:
         return self.__objects["spotify_likes"]
@@ -132,6 +152,7 @@ class FileStorage:
         if self.__objects[query_type].get(query):
             return
 
+        logger.debug(f"[Cache] New entry: {query}")
         self._dirty = True
 
         match query_type:
@@ -154,6 +175,8 @@ class FileStorage:
         """Serializes and saves the cache to the JSON file safely."""
         if not self._dirty:
             return
+
+        logger.debug("[Cache] Updating")
 
         serialized_objects: SerializedCacheOptions = {
             "metadata": {
@@ -192,6 +215,7 @@ class FileStorage:
 
     def reload(self) -> None:
         """Deserializes and reloads the cache from the JSON file."""
+        logger.debug("[Cache] Loading into memory")
         try:
             with open(self.__file_path, "r") as file:
                 loaded_objects = load(file)
@@ -310,6 +334,7 @@ class FileStorage:
         query_type: MediaProviders,
         alt_query: str = "",
     ):
+        logger.debug(f"[Cache] Reading: {query} [{query_type}]")
         query = query.replace(" Audio", "")
 
         cache = self.__objects[query_type].get(query) or self.__objects[query_type].get(
@@ -317,10 +342,10 @@ class FileStorage:
         )
 
         if isinstance(cache, Sentinel):
-            info(f"[Cache Miss] {query}")
+            logger.debug(f"[Cache] Miss: {query}")
             raise SongNotFound(query)
 
         else:
-            info(f"[Cache] {query}")
+            logger.debug(f"[Cache] Hit: {cache}" if cache else "[Cache] No entry")
             return cache
 

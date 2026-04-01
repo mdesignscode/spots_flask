@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from logging import error, info
+from logging import getLogger
 from lyricsgenius import Genius
 from typing import TYPE_CHECKING
 
@@ -8,6 +8,8 @@ if TYPE_CHECKING:
     from spots.clients import SecretsManager
     from spots.core import WebScraper
 
+
+logger = getLogger(__name__)
 
 class LyricsFinder:
     """
@@ -38,19 +40,19 @@ class LyricsFinder:
         """
         try:
             if self.genius:
-                info("Searching for lyrics on Genius")
+                logger.info("Searching for lyrics on Genius")
                 song = self.genius.search_song(title, artist)
 
                 if not song or "Verse" not in song.lyrics or title not in song.title:
-                    info("Genius lyrics not found. Searching AZLyrics")
+                    logger.info("Genius lyrics not found. Searching AZLyrics")
                     lyrics = self.scraper.scrape_azlyrics(artist=artist, title=title)
                 else:
                     lyrics = song.lyrics
             else:
-                    info("Genius API not available. Falling back to AZLyrics")
+                    logger.info("Genius API not available. Falling back to AZLyrics")
                     lyrics = self.scraper.scrape_azlyrics(artist=artist, title=title)
         except Exception as e:
-            error(e)
+            logger.error(e)
             lyrics = ""
         return lyrics
 

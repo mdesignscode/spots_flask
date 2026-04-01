@@ -1,10 +1,10 @@
 from __future__ import annotations
-from logging import info, error
+from logging import getLogger
 from re import escape, search
 from tenacity import stop_after_delay
 from typing import Any, TYPE_CHECKING
 
-from spots.engine import retry, storage
+from spots.engine import retry
 from spots.models import (
     SongNotFound,
     Metadata,
@@ -18,10 +18,11 @@ from spots.utils import search_fallbacks
 
 if TYPE_CHECKING:
     from spotipy import Spotify
-    from spots.bootstrap.container import Clients
+    from spots.bootstrap.container import Clients, Core
     from spots.models import MetadataProvider
-    from spots.clients import SpotifyClient
 
+
+logger = getLogger(__name__)
 
 class SpotifySearchService(SearchProvider):
     def __init__(
@@ -29,10 +30,12 @@ class SpotifySearchService(SearchProvider):
         *,
         metadata: MetadataProvider,
         clients: Clients,
+        core: Core,
         fallback_providers: list[SearchProvider] = [],
     ):
         self.fallback_providers = fallback_providers
         self.clients = clients
+        self.core = core
         self.metadata = metadata
 
     def _spotify(self) -> Spotify:
@@ -161,10 +164,10 @@ class SpotifySearchService(SearchProvider):
 
         if "-" not in query:
             error_txt = "Search format: `Artist` - `Title`"
-            error(error_txt)
+            logger.error(error_txt)
             raise TypeError(error_txt)
 
-        cache = storage.get(query=query, query_type="metadata")
+        cache = self.core.storage.get(query=query, query_type="metadata")
         if isinstance(cache, Sentinel):
             raise SongNotFound(query)
         elif isinstance(cache, Metadata):
@@ -174,7 +177,6 @@ class SpotifySearchService(SearchProvider):
         single_result = self._spotify().search(query)
 
         if not single_result:
-            info(f"{query} not found")
             return search_fallbacks(query=query, providers=self.fallback_providers)
 
         try:
@@ -195,12 +197,12 @@ class SpotifySearchService(SearchProvider):
         # if search result does not match query
         # then query may be a single album
         if not artist_match and not search(single_data.title.lower(), query.lower()):
-            info("Searching for album version...")
+            logger.info("Searching for album version...")
             # get album id of first result
             results = self._spotify().search(query, type="album")
 
             if not results:
-                info(f"{query} not found")
+                logger.info(f"{query} not found")
                 return search_fallbacks(query=query, providers=self.fallback_providers)
 
             try:
@@ -213,7 +215,7 @@ class SpotifySearchService(SearchProvider):
             album = self._spotify().album(album_url)
 
             if not album:
-                info(f"{query} not found")
+                logger.info(f"{query} not found")
                 return search_fallbacks(query=query, providers=self.fallback_providers)
 
             # get id of first result

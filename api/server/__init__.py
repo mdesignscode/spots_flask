@@ -1,11 +1,10 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from logging import error, info
+from logging import getLogger
 from typing import Dict, Literal, TypedDict, cast
 
 from spots.bootstrap import Container
 from spots.clients import SecretsManager
-from spots.engine import storage
 from spots.models import (
     SongNotFound,
     YouTubeQuotaExceeded,
@@ -24,6 +23,8 @@ app.register_blueprint(blueprint)
 CORS(app)
 
 bootstrapper = Container()
+
+logger = getLogger(__name__)
 
 
 class SingleMetadata(TypedDict):
@@ -62,6 +63,8 @@ class SingleResponse(TypedDict):
 
 @app.route("/get-user")
 def get_user():
+    if not bootstrapper.clients.spotify:
+        return jsonify({"error": "Spotify features unavailable. Sign in to use Spotify features."}), 401
     username = bootstrapper.clients.spotify.get_user()
 
     return jsonify({"username": username})
@@ -114,7 +117,7 @@ def query(action: str):
         else:
             query = ""
 
-    info(f"Performing {action} on {query}...")
+    logger.info(f"Performing {action} on {query}...")
 
     match action:
         # ---- search for a title on spotify ---- #
@@ -127,7 +130,7 @@ def query(action: str):
 
             except Exception as e:
                 # catch edge case for future handling
-                error(f"Spotify search error: {e}")
+                logger.error(f"Spotify search error: {e}")
                 return jsonify({"error": str(e)}), 503
 
             metadata = spotify_result
@@ -183,8 +186,8 @@ def query(action: str):
                 "action": action,
             }
 
-            storage.new(query=youtube_title, result=best_match, query_type="youtube")
-            storage.save()
+            bootstrapper.core.storage.new(query=youtube_title, result=best_match, query_type="youtube")
+            bootstrapper.core.storage.save()
 
             return jsonify(search_response)
         # ---- download url ----

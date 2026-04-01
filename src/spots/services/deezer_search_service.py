@@ -13,7 +13,7 @@ from spots.models import (
 from spots.utils import search_fallbacks
 
 if TYPE_CHECKING:
-    from spots.bootstrap.container import Clients
+    from spots.bootstrap.container import Clients, Core
     from spots.models import SearchProvider
 
 
@@ -28,10 +28,12 @@ class DeezerSearchService(SearchProvider):
         *,
         metadata: MetadataProvider,
         clients: Clients,
+        core: Core,
         fallback_providers: list[SearchProvider] = [],
     ):
         self.fallback_providers = fallback_providers
         self.clients = clients
+        self.core = core
         self.metadata = metadata
 
     def search_album(self, album_url: str) -> PlaylistInfo:

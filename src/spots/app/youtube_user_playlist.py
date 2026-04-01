@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from googleapiclient.errors import HttpError
-from logging import error, info
+from logging import getLogger
 from socket import timeout as SocketTimeout
 from tenacity import stop_after_attempt, wait_exponential
 from typing import TYPE_CHECKING
 
-from spots.engine import storage, retry
+from spots.engine import retry
 from spots.models import SongNotFound, YouTubeQuotaExceeded, Sentinel, YTVideoInfo, Metadata, YouTubeUnavailableError
 
 if TYPE_CHECKING:
@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from spots.services.youtube_search_service import YoutubeSearchService
     from spots.clients import YouTubeApiClient
 
+
+logger = getLogger(__name__)
 
 class YouTubeUserPlaylist:
     def __init__(
@@ -82,7 +84,7 @@ class YouTubeUserPlaylist:
             ).execute()
         except (SocketTimeout, TimeoutError) as e:
             # Retryable network error
-            info(f"[Network Timeout] Retrying like for {video_id}: {e}")
+            logger.info(f"[Network Timeout] Retrying like for {video_id}: {e}")
             raise  # Tenacity will retry
         except HttpError as e:
             # API-level error (bad ID, auth, quota, etc.)
@@ -106,7 +108,7 @@ class YouTubeUserPlaylist:
         )
         if titles_match:
             try:
-                info(f"Trying to add {title} to likes")
+                logger.info(f"Trying to add {title} to likes")
                 self._like_video(video_id)
                 return True
             except HttpError as e:
@@ -120,14 +122,14 @@ class YouTubeUserPlaylist:
                     elif reason == "quotaExceeded":
                         raise YouTubeQuotaExceeded()
                     else:
-                        error("Unexpected reason:")
-                        error(reason)
+                        logger.error("Unexpected reason:")
+                        logger.error(reason)
                         raise
                 raise
             except Exception as e:
                 raise
 
-        info(f"No match found for {title}")
+        logger.info(f"No match found for {title}")
         return False
 
     def transfer_spotify_likes_to_yt(self):
@@ -138,7 +140,7 @@ class YouTubeUserPlaylist:
         tracks = self.spotify_playlist_compiler.user_saved_tracks()
 
         # save newly added liked tracks
-        storage.save()
+        self.core.storage.save()
 
         unexpected_errors = []
         playlist_len = len(tracks.provider_metadata)
@@ -147,8 +149,8 @@ class YouTubeUserPlaylist:
         for index, track in enumerate(tracks.provider_metadata):
             spotify_title = f"{track.artist} - {track.title}"
 
-            if storage.get(query=spotify_title, query_type="yt_likes"):
-                info(f"🗄 Already Liked: {spotify_title}")
+            if self.core.storage.get(query=spotify_title, query_type="yt_likes"):
+                logger.info(f"🗄 Already Liked: {spotify_title}")
                 continue
 
             video_added_to_likes = False
@@ -169,36 +171,36 @@ class YouTubeUserPlaylist:
                 )
                 video_added_to_likes = self.like_video(video=best_match, metadata=track)
                 if video_added_to_likes:
-                    storage.new(
+                    self.core.storage.new(
                         query=spotify_title,
                         result=best_match,
                         query_type="yt_likes",
                     )
                 else:
-                    info(f"Failed to add {spotify_title} to likes")
-                    storage.new(
+                    logger.info(f"Failed to add {spotify_title} to likes")
+                    self.core.storage.new(
                         query=spotify_title, result=Sentinel(), query_type="yt_likes"
                     )
                     continue
             except SongNotFound:
                 continue
             except YouTubeQuotaExceeded:
-                storage.save()
-                error("Quota exceeded")
+                self.core.storage.save()
+                logger.error("Quota exceeded")
                 raise
             except Exception as e:
                 unexpected_errors.append(str(e))
                 continue
 
             if (index % 10 == 0) or (index == (playlist_len - 1)):
-                storage.save()
+                self.core.storage.save()
 
-            info(f"✅ Liked: {spotify_title}")
+            logger.info(f"✅ Liked: {spotify_title}")
 
-        storage.save()
+        self.core.storage.save()
 
         if len(unexpected_errors):
-            error("Unexpected errors occurred")
+            logger.error("Unexpected errors occurred")
             for unexpected in unexpected_errors:
-                error(unexpected)
+                logger.error(unexpected)
 

@@ -1,12 +1,14 @@
-from logging import info, error
+from logging import getLogger
 from requests.exceptions import HTTPError
 from tenacity import stop_after_delay
 from typing import Any, TypedDict, cast
 
-from spots.engine.retry import retry
+from spots.engine import retry
 from spots.models import SongNotFound, InvalidURL, ArtistInfo
-from spots.utils.fetch import FetchResponseFailure, FetchResponseSuccess, fetch_data
+from spots.utils import FetchResponseFailure, FetchResponseSuccess, fetch_data
 
+
+logger = getLogger(__name__)
 
 class DeezerResponseBase(TypedDict):
     total: int
@@ -52,19 +54,19 @@ class DeezerClient:
     @retry(stop=stop_after_delay(60))
     def search(self, query: str) -> str:
         try:
-            info(f"Searching for {query} on Deezer")
+            logger.info(f"Searching for {query} on Deezer")
             search_url = f"https://api.deezer.com/search?q={query}&limit=1"
             res = fetch_data(search_url)
             if res.success and res.data is not None:
                 res_json = cast(DeezerResponseBase, res.data)
                 if res_json["total"] == 0:
-                    error("No results found")
+                    logger.error("No results found")
                     raise SongNotFound(query)
 
                 return str(res_json["data"][0]["id"])
             else:
                 raise SongNotFound(query)
         except HTTPError as e:
-            error("An error occured", e)
+            logger.error("An error occurred", e)
             raise SongNotFound(query)
 
