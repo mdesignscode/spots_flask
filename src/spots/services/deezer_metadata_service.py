@@ -77,7 +77,7 @@ class DeezerMetadataService(MetadataProvider):
 
         album_info = track["album"]
         album_name = album_info["title"]
-        cover = album_info["cover"]
+        cover = album_info["cover_xl"]
 
         artist_info = track["artist"]
         artist_name = artist_info["name"]

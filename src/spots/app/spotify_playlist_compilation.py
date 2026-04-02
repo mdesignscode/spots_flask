@@ -83,7 +83,7 @@ class SpotifyPlaylistCompilation:
             scraped_cover = essentials_playlist_data.cover
             scraped_title = essentials_playlist_data.name
             essential_cover = (
-                scraped_cover if scraped_cover else "/static/single-cover.jpg"
+                scraped_cover if scraped_cover else self.clients.secrets.read(key="static_playlist_cover_name", alt="youtube-playlist.jpg")
             )
             essential_title = (
                 scraped_title if scraped_title else f"This is {artist_name}"

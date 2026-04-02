@@ -42,6 +42,7 @@ def main():
     print("\n=== Environment Configuration ===\n")
 
     static_cover_name = "single-cover.jpg"
+    static_playlist_cover_name = "youtube-playlist.jpg"
     flask_port = 5000
     main_provider: Literal["deezer", "spotify"] = "deezer"
     spotify_features_available = "False"
@@ -50,6 +51,7 @@ def main():
     variables_map = {
         "flask_port": flask_port,
         "static_cover_name": static_cover_name,
+        "static_playlist_cover_name": static_playlist_cover_name,
         "spotify_features_available": spotify_features_available,
         "youtube_account_features_available": youtube_account_features_available,
         "main_provider": main_provider,

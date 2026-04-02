@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from logging import getLogger
+from os.path import join
 from tenacity import stop_after_delay
 from typing import TYPE_CHECKING, Any, cast
 
@@ -104,7 +105,7 @@ class MediaResolver:
                     )
                 )
 
-                cover = "http://localhost:5000/static/youtube-playlist.jpg"
+                cover = self.clients.secrets.read(key="static_playlist_cover_name", alt="youtube-playlist.jpg")
                 playlist_name = playlist_search["title"]
 
                 playlist_info = PlaylistInfo(

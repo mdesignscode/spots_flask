@@ -36,10 +36,7 @@ class YouTubeMetadataService:
         logger.info(f"Retrieving metadata for YouTube video: {video_info.title}")
 
         # get cover from static folder
-        static_cover_name = self.clients.secrets.read(
-            key="static_cover_name", alt="single-cover.jpg"
-        )
-        cover = f"http://localhost:5000/{static_cover_name}"
+        cover = self.clients.secrets.read(key="static_cover_name", alt="single-cover.jpg")
 
         search_title = video_info.full_title
         youtube_url = f"https://youtube.com/watch?v={video_info.id}"

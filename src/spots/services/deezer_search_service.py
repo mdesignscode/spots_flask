@@ -9,6 +9,7 @@ from spots.models import (
     ArtistInfo,
     MetadataProvider,
     SongNotFound,
+    Sentinel,
 )
 from spots.utils import search_fallbacks
 
@@ -95,9 +96,20 @@ class DeezerSearchService(SearchProvider):
         )
 
     def search_track(self, query: str) -> Metadata:
-        try:
-            track_id = self.clients.deezer.search(query)
-            return self.metadata.get(track_id=track_id)
-        except SongNotFound:
-            return search_fallbacks(query=query, providers=self.fallback_providers)
+        cache = self.core.storage.get(query=query, query_type="metadata")
+
+        if isinstance(cache, Sentinel):
+            raise SongNotFound(query)
+        elif isinstance(cache, Metadata):
+            return cache
+        else:
+            try:
+                track_id = self.clients.deezer.search(query)
+                metadata = self.metadata.get(track_id=track_id)
+                self.core.storage.new(query=query, result=metadata, query_type="metadata")
+                return metadata
+            except SongNotFound:
+                metadata = search_fallbacks(query=query, providers=self.fallback_providers)
+                self.core.storage.new(query=query, result=metadata, query_type="metadata")
+                return metadata
 
