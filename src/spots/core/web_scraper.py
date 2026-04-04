@@ -28,7 +28,7 @@ def get_element_by_comment(soup: BeautifulSoup, comment_text: str):
 class WebScraper:
     def scrape_azlyrics(self, *, artist: str, title: str):
 
-        logger.info("Searching for lyrics on AZLyrics")
+        logger.debug("Searching for lyrics on AZLyrics")
         artist = artist.lower().replace(" ", "")
         title = title.lower().replace(" ", "")
 
@@ -44,7 +44,7 @@ class WebScraper:
         if not (search("spotify", url) and search("playlist", url)):
             raise TypeError("Please provide a valid Spotify playlist url")
 
-        logger.info("Scraping spotify playlist")
+        logger.debug("Scraping spotify playlist")
 
         response = get(url)
         soup = BeautifulSoup(response.text, "html.parser")

@@ -48,7 +48,7 @@ class SpotifyMetadataService(MetadataProvider):
         track_id: str | None = None,
         search_result: dict[str, Any] | None = None,
     ) -> Metadata:
-        logger.info("Searching for metadata on Spotify...")
+        logger.debug("Searching for metadata on Spotify...")
 
         if track_id is not None:
             query_id = track_id

@@ -46,7 +46,7 @@ class MediaResolver:
             # single
             if "track" in url:
                 # retrieve Spotify data
-                logger.info("Resource type: single")
+                logger.debug("Resource type: single")
 
                 track_id = url.split("/")[-1]
                 metadata = self.domain.provider_metadata.get(track_id=track_id)
@@ -66,7 +66,7 @@ class MediaResolver:
                 )
             # playlist
             else:
-                logger.info("Resource type: playlist")
+                logger.debug("Resource type: playlist")
                 playlist_info = self.domain.provider_search.search_playlist(url)
 
                 return MediaResourcePlaylist(
@@ -75,10 +75,10 @@ class MediaResolver:
 
         # process youtube link
         elif "youtu" in url:
-            logger.info("URL type: YouTube")
+            logger.debug("URL type: YouTube")
             # playlist
             if "playlist" in url:
-                logger.info("Resource type: playlist")
+                logger.debug("Resource type: playlist")
                 playlist_search = self.clients.ytdlp.client.extract_info(
                     url, download=False
                 )
@@ -119,7 +119,7 @@ class MediaResolver:
                     resource_type="playlist", playlist_info=playlist_info
                 )
             else:
-                logger.info("Resource type: single")
+                logger.debug("Resource type: single")
 
                 video_info = self.domain.youtube_search.video_search(
                     query=url, is_general_search=False

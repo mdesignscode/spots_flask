@@ -45,7 +45,7 @@ class Spots:
             try:
                 provider_result = self.container.domain.provider_search.search_track(query)
             except SongNotFound:
-                logger.info("Query not found by provider, falling back to YouTube video details.")
+                logger.debug("Query not found by provider, falling back to YouTube video details.")
                 provider_result = None
             except InvalidSearchFormat as e:
                 logger.error(e)
@@ -64,7 +64,6 @@ class Spots:
                 self.downloader.download(video_info=best_match, metadata=metadata)
             except (SongNotFound, TitleExistsError) as e:
                 logger.info(e)
-                return
 
             self.container.core.storage.new(query=query, result=best_match, query_type="youtube")
             self.container.core.storage.save()

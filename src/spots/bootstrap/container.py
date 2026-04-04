@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from logging import basicConfig, INFO, getLogger
+from logging import ERROR, basicConfig, INFO, getLogger
 from os.path import exists
 
 from spots.app import (
@@ -82,41 +82,42 @@ class Container:
         self.__path = get_config_path() / ".bootstrapped"
 
         basicConfig(level=INFO)
+        getLogger("googleapiclient.discovery_cache").setLevel(ERROR)
 
-        logger.info("Bootstrapping app...")
+        logger.debug("Bootstrapping app...")
 
         self.initial_setup()
 
-        logger.info("Setting up core components...")
+        logger.debug("Setting up core components...")
         self.core = self._build_core()
         self.clients = self._build_clients()
         self.domain = self._build_domain()
         self.app = self._build_application()
-        logger.info("Components setup complete.")
+        logger.debug("Components setup complete.")
 
         # cache
-        logger.info("Loading cache into memory...")
+        logger.debug("Loading cache into memory...")
         self.core.storage.cache_file_exists()
         self.core.storage.reload()
-        logger.info("Cache loaded.")
+        logger.debug("Cache loaded.")
 
-        logger.info("Bootstrap complete. App ready for use.")
+        logger.debug("Bootstrap complete. App ready for use.")
 
     def initial_setup(self) -> None:
         if not exists(self.__path):
-            logger.info("Running initial setup...")
-            logger.info("Creating internal files used for tracking downloads...")
+            logger.debug("Running initial setup...")
+            logger.debug("Creating internal files used for tracking downloads...")
 
             # downloads history
-            logger.info("Creating downloads history file...")
+            logger.debug("Creating downloads history file...")
             history = HistoryManager()
             history.history_file_exists()
-            logger.info("History file created.")
+            logger.debug("History file created.")
 
             with open(self.__path, "w"):
                 pass
 
-            logger.info("Download manager files setup complete.")
+            logger.debug("Download manager files setup complete.")
 
     def _build_clients(self) -> Clients:
         secrets = SecretsManager()

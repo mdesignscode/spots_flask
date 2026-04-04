@@ -129,7 +129,7 @@ class YouTubeUserPlaylist:
             except Exception as e:
                 raise
 
-        logger.info(f"No match found for {title}")
+        logger.debug(f"No match found for {title}")
         return False
 
     def transfer_spotify_likes_to_yt(self):

@@ -45,7 +45,7 @@ class VideoConverter:
         Raises:
             FileNotFoundError: If the audio file does not exist.
         """
-        logger.info("Updating metadata")
+        logger.debug("Updating metadata")
 
         try:
             audio = MP3(audio_path, ID3=ID3)

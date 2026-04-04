@@ -181,8 +181,7 @@ class PatternMatcher:
         )
 
         score_based_match = final_score >= self.FINAL_THRESHOLD and (
-            title_score >= self.TITLE_THRESHOLD
-            or artist_score >= self.ARTIST_THRESHOLD
+            title_score >= self.TITLE_THRESHOLD or artist_score >= self.ARTIST_THRESHOLD
         )
 
         is_match = title_dominant_match or score_based_match
@@ -200,11 +199,11 @@ class PatternMatcher:
         self, *, search_results: list[YTVideoInfo], metadata: Metadata
     ) -> YTVideoInfo:
         query = f"{metadata.artist} - {metadata.title}"
-        logger.info("Searching best match for query: '%s'", query)
+        logger.debug("Searching best match for query: '%s'", query)
 
         cache = storage.get(query=query, query_type="youtube")
         if cache:
-            logger.info("Cache hit for query: '%s'", query)
+            logger.debug("Cache hit for query: '%s'", query)
             return cache
 
         for idx, result in enumerate(search_results):
@@ -217,7 +216,7 @@ class PatternMatcher:
             result.full_title = title_and_artist
 
             if self.match_tracks(video_info=result, metadata=metadata):
-                logger.info("Match found: '%s'", result.title)
+                logger.debug("Match found: '%s'", result.title)
                 storage.new(query=query, result=result, query_type="youtube")
                 logger.debug("#" * 50)
                 return result

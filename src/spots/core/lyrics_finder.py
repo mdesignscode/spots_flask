@@ -40,16 +40,16 @@ class LyricsFinder:
         """
         try:
             if self.genius:
-                logger.info("Searching for lyrics on Genius")
+                logger.debug("Searching for lyrics on Genius")
                 song = self.genius.search_song(title, artist)
 
                 if not song or "Verse" not in song.lyrics or title not in song.title:
-                    logger.info("Genius lyrics not found. Searching AZLyrics")
+                    logger.debug("Genius lyrics not found. Searching AZLyrics")
                     lyrics = self.scraper.scrape_azlyrics(artist=artist, title=title)
                 else:
                     lyrics = song.lyrics
             else:
-                    logger.info("Genius API not available. Falling back to AZLyrics")
+                    logger.debug("Genius API not available. Falling back to AZLyrics")
                     lyrics = self.scraper.scrape_azlyrics(artist=artist, title=title)
         except Exception as e:
             logger.error(e)
