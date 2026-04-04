@@ -2,7 +2,7 @@
 name = "spots"
 version = "0.1.0"
 authors = [
-  { name="Marlon Baatjes", email="marlonbaatjes62@mail.com" }
+  { name="Marlon Baatjes", email="marlonbaatjes62@gmail.com" }
 ]
 description = "Spots is a modular music coordination library that unifies multiple providers (e.g. Deezer, Spotify, YouTube) into a single, consistent interface."
 readme = "README.md"
