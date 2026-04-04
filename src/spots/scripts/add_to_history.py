@@ -1,11 +1,13 @@
-#!/usr/bin/python3
 """Recursively adds user's downloaded songs to spots history file"""
 
-from os import listdir, path, getcwd
-from sys import argv
 from mutagen.id3 import ID3
 from mutagen.mp3 import MP3, HeaderNotFoundError
+from os import listdir, path, getcwd
 
+from spots.utils import get_config_path
+
+
+history_file = get_config_path() / ".spots_download_history.txt"
 
 def update_history(file_path):
     """Update history file with song information"""
@@ -32,17 +34,9 @@ def process_directory(directory):
             update_history(item_path)
 
 
-if __name__ == "__main__":
-    if len(argv) < 2:
-        print("Usage: python add_to_history.py folder_path")
-        exit(1)
-
-    folder = argv[1]
-
+def main(folder):
     if path.exists(folder):
         print("Updating Spots downloads history...")
-        spots_path = getcwd()
-        history_file = f"{spots_path}/Music/.spots_download_history.txt"
 
         process_directory(folder)
 

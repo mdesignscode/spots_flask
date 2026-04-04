@@ -48,10 +48,19 @@ class EmptySpotifyLikes(Exception):
         self.message = "The YouTube API quota has been exceeded"
         super().__init__(self.message)
 
+class InvalidSearchFormat(Exception):
+    """Invalid search query format"""
+
+    def __init__(self):
+        self.message = "Use format `Artist - Title` for search queries"
+        super().__init__(self.message)
+
 
 class YouTubeUnavailableError(RuntimeError):
+    """YouTube account features unavailable"""
     pass
 
 
 class SpotifyUnavailableError(RuntimeError):
+    """Spotify search features unavailable"""
     pass

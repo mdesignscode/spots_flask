@@ -1,171 +1,117 @@
-<br/>
-<p align="center">
-  <a href="https://github.com/mdesignscode/spots_flask">
-    <img src="server/static/icon.jpg" alt="Logo" width="100" height="100">
-  </a>
+# 🎧 Spots
 
-  <h1 align="center">Spots</h1>
+Spots is a modular music coordination library that unifies multiple providers (e.g. Deezer, Spotify, YouTube) into a single, consistent interface.
 
-  <h3 align="center">
-    A visually appealing music converter for Spotify and YouTube
-    <br/>
-    <br/>
-  </h3>
-</p>
+It resolves tracks across platforms, matches metadata intelligently, and enables downloading, playlist handling, and media conversion — all through a clean, configurable API.
 
-<br/>
+---
 
-<h2 style="text-align: center; color: #4CAF50;">About</h2>
+## ✨ Features
 
-<p>Embark on a tailored musical journey with a meticulously crafted converter designed for discerning music enthusiasts. This tool is your gateway to a clean, organized, and visually striking music library. Beyond a conventional conversion, it intelligently pulls song metadata from Spotify, retrieves the corresponding YouTube video, and transforms it into a seamless MP3 experience. Perfect your music collection with precision and elegance, ensuring each track resonates with your unique style.</p>
+- 🔍 **Multi-provider search**
+  - Supports multiple metadata providers with fallback resolution
 
-<br/>
+- 🧠 **Intelligent track matching**
+  - Matches tracks across platforms using pattern-based scoring
 
-<em>Spots is now a pure Restful API, so you can implement your own UI, or just use something like cURL! I have ported the original Spots UI to React, which is available at [http://github.com/mdesignscode/spots_ui](http://github.com/mdesignscode/spots_ui)</em>
+- 🎵 **Unified media resolution**
+  - Seamlessly map metadata → YouTube → downloadable media
 
-<br/>
+- ⚡ **Provider fallback system**
+  - Automatically falls back when a provider fails
 
-<h2 style="text-align: center; color: #4CAF50;">Tech Stack</h2>
-<div style="display: flex; gap: 1.5rem; align-items: center; justify-content: center;">
-  <a style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; cursor: pointer;" href="https://www.python.org/" class="stack_item">
-    <img src="./server/static/tech_stack/python-svgrepo-com.svg" alt="Python icon" width="80" height="80">
-    <p>Python</p>
-  </a>
+- 🗂️ **Built-in caching**
+  - Reduces redundant API calls and speeds up repeated queries
 
-  <a href="https://flask.palletsprojects.com/en/3.0.x/" class="stack_item" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; cursor: pointer;">
-    <img src="./server/static/tech_stack/flask-svgrepo-com.svg" alt="Flask icon" width="80" height="80">
-    <p>Flask</p>
-  </a>
-</div>
+- ⚙️ **Config-driven architecture**
+  - Enable/disable integrations (Spotify, YouTube, etc.)
 
-<br/>
+- 📦 **Download + conversion pipeline**
+  - Handles media extraction and conversion (via yt-dlp)
 
-<h2 style="text-align: center; color: #4CAF50;">Key Features</h2>
+---
 
-<div>
-  <h3>Discover Artists:</h3>
-  <p style="margin-left: 1rem;">Explore your favorite artists by retrieving their albums and top tracks from Spotify.</p>
-</div>
-
-<div>
-  <h3>Smart Song Search:</h3>
-  <p style="margin-left: 1rem;">Effortlessly find music by searching titles, YouTube video URLs, or Spotify track URLs. Get personalized recommendations based on your preferences.</p>
-</div>
-
-<div>
-  <h3>Playlist Magic:</h3>
-  <p style="margin-left: 1rem;">Download entire Spotify playlists, albums, or YouTube playlists to curate your perfect collection.</p>
-</div>
-
-<br/>
-
-<h2 style="text-align: center; color: #4CAF50;">Requirements</h2>
-
-<strong><a href="https://www.python.org/downloads/">Python3</a></strong>
-<br/>
-<strong>A text editor (Notepad, Visual Studio Code, Atom, etc)</strong>
-<br/>
-<strong>A command line interface (Bash, Powershell, etc)</strong>
-<br/>
-<strong>A Spotify <a href="https://developer.spotify.com/dashboard">API key</a>.</strong>
-
-<br/>
-
-<h2 style="text-align: center; color: #4CAF50;">Setup</h2>
-
-<h4>Clone this repo:</h4>
+## 📦 Installation
 
 ```bash
-  git clone https://github.com/mdesignscode/spots_flask
+pip install spots
 ```
 
-<h4>Go to repo folder:</h4>
+---
+
+## ⚙️ Setup
+
+### Run the setup script:
 
 ```bash
-  cd spots_flask
+spots setup
 ```
 
-<h4>Get api keys:</h4>
+* follow the prompts to generate the config folder
 
-<p style="margin-left: 1rem;">Create a Spotify developer app at <a href="https://developer.spotify.com/dashboard">the Spotify developers console</a>.</p>
 
-<p style="margin-left: 1rem;">Retrieve the <em>client secret key</em> and <em>client id</em> from the dashboard settings.</p>
+---
 
-<p>You can view the <a href="https://developer.spotify.com/documentation/web-api">Official docs</a> for more info on the API</p>
-
-<br/>
-
-<p style="margin-left: 1rem;">Create a Genius developer app at <a href="https://genius.com/api-clients/new">the Genius developers console</a>.</p>
-
-<p style="margin-left: 1rem;">Retrieve the <em>client secret key</em> from <a href="https://genius.com/api-clients">the clients dashboard</a>.</p>
-
-<h4>Add keys to environment:</h4>
-
-<p style="margin-left: 1rem;">Create a file called <strong>.env</strong> at the root of the project and add the following:</p>
-
-    SPOTIPY_CLIENT_ID=spotify_client_id
-    SPOTIPY_CLIENT_SECRET=spotify_client_secret
-    lyricsgenius_key=genius_secret_key
-    SPOTIPY_REDIRECT_URI='https://open.spotify.com/?'
-    # to sign in to your account (for user saved tracks), add these variables
-    username=<your_username>
-    use_oauth=True
-
-<h4>Create a Python virtual environment</h4>
-
+## 🚀 Usage
 ```bash
-python3 -m venv spots_venv
+# search a title
+# required search format: `Artist - Title`
+spots download "Kelsey Lynn - Modern Day Marilyn Monroe"
+
+# download a direct url
+spots download "https://www.youtube.com/watch?v=UmZPa5Qudtw"
 ```
 
-<h4>Activate environment<h4>
+Spots will:
 
-<p>On Windows</p>
+* Resolve the track via metadata providers
+* Match it to a YouTube video
+* Download and convert it
+* Store results locally
 
-```powershell
-spots_venv\Scripts\activate
-```
+---
 
-<p>On Linux/macOS</p>
+## 🎮 Available commands
 
-```bash
-source spots_venv/bin/activate
-```
+* download - downloads a direct url or a search query
+  ```bash
+  spots download "Kelsey Lynn - Modern Day Marilyn Monroe"
+  ```
+* migrate-likes - transfers likes from Spotify to YouTube (more providers coming soon...)
+  ```bash
+  spots migrate-likes
+  ```
+* add-to-history - adds a user's downloaded songs to the Spots history. Avoids duplicate downloads.
+  ```bash
+  spots add-to-history path-to-music
+  ```
+* remove-duplicates - removes duplicate songs in a given folder.
+  ```bash
+  spots remove-duplicates path-to-music
+  ```
 
-<p>Your command prompt or terminal prompt should change to indicate that you are now in the virtual environment.</p>
+---
 
-<h4>Install dependencies</h4>
+## ⚠️ Important
 
-```pip3
-pip3 install -r requirements.txt
-```
+    The Spotify API content may not be downloaded using this project. This project is created for personal use only and is intended for educational purposes. Any use of this project to download or distribute copyrighted material without proper authorization is against the terms of service of Spotify and other involved platforms. The project's author and contributors are not responsible for any misuse of this software.
 
-<h4>Start Server</h4>
+## 🤝 Contributing
 
-```bash
-python3 spots.py
-```
+Contributions are welcome.
 
-<h2 style="text-align: center; color: #4CAF50;">Screenshots</h2>
+If you're adding a provider or improving matching logic, open a PR with a clear description of changes.
 
-<img src="./server/static/screenshots/home.png" alt="Home page screenshot">
+---
 
-<br/>
+## 📄 License
 
-<img src="./server/static/screenshots/single.png" alt="Single query UI screenshot">
+GPL-3.0-or-later
 
-<br/>
+---
 
-<img src="./server/static/screenshots/playlist.png" alt="Playlist query UI screenshot">
+## 💬 Summary
 
-<br/>
+Spots is designed to make cross-platform music workflows simple:
 
-<h2 style="text-align: center; color: #4CAF50;">Disclaimer</h2>
-
-<p><strong>Important:</strong> The Spotify API content may not be downloaded using this project. This project is created for personal use only and is intended for educational purposes. Any use of this project to download or distribute copyrighted material without proper authorization is against the terms of service of Spotify and other involved platforms. The project's author and contributors are not responsible for any misuse of this software.</p>
-
-<br/>
-
-<h2 style="text-align: center; color: #4CAF50;">License</h2>
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
+Give it a track — it figures out the rest.

@@ -1,9 +1,11 @@
 from os import path
 
+from spots.utils import get_config_path
+
 
 class HistoryManager:
     def __init__(self):
-        self.__history_file = "./Music/.spots_download_history.txt"
+        self.__history_file = f"{get_config_path()}/.spots_download_history.txt"
 
     def history_file_exists(self):
         if not path.isfile(self.__history_file):

@@ -65,21 +65,13 @@ class VideoConverter:
             # Handle cover art
             cover = metadata.cover
             if cover:
-                if "https://" not in cover:
-                    assets_path = "./assets/"
-                    # Open image file in binary mode and read bytes
-                    with open(assets_path + cover, "rb") as f:
-                        cover_data = f.read()
-                else:
-                    cover_data = get(cover).content
-
                 audio.tags.add(
                     APIC(
                         encoding=3,
                         mime="image/jpeg",
                         type=3,
                         desc="Cover",
-                        data=cover_data,
+                        data=get(cover).content,
                     )
                 )
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from logging import getLogger
 from typing import Any, TypedDict, cast, TYPE_CHECKING
 
 from spots.models import (
@@ -10,6 +11,7 @@ from spots.models import (
     MetadataProvider,
     SongNotFound,
     Sentinel,
+    InvalidSearchFormat,
 )
 from spots.utils import search_fallbacks
 
@@ -17,6 +19,8 @@ if TYPE_CHECKING:
     from spots.bootstrap.container import Clients, Core
     from spots.models import SearchProvider
 
+
+logger = getLogger(__name__)
 
 class DeezerResponseBase(TypedDict):
     total: int
@@ -96,6 +100,13 @@ class DeezerSearchService(SearchProvider):
         )
 
     def search_track(self, query: str) -> Metadata:
+        query = query.replace("–", "-")  # `–` != `-`
+
+        if "-" not in query:
+            error_txt = "Search format: `Artist` - `Title`"
+            logger.error(error_txt)
+            raise InvalidSearchFormat()
+
         cache = self.core.storage.get(query=query, query_type="metadata")
 
         if isinstance(cache, Sentinel):

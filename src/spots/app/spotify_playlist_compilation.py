@@ -148,7 +148,6 @@ class SpotifyPlaylistCompilation:
             playlist=all_artist_albums, name=artist_name, cover=artist_cover
         )
 
-    @retry(stop=stop_after_delay(60))
     def user_saved_tracks(self) -> PlaylistInfo:
         """retrieves a user's saved tracks
 

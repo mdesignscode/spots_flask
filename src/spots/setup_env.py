@@ -1,7 +1,9 @@
 from os.path import exists
 from typing import Literal
 
-FILENAME = ".env"
+from spots.utils import get_config_path, create_config_dir
+
+FILENAME = f"{get_config_path()}/.env"
 
 
 def save_env(variables: dict[str, str]):
@@ -41,20 +43,24 @@ def main():
 
     print("\n=== Environment Configuration ===\n")
 
-    static_cover_name = "single-cover.jpg"
-    static_playlist_cover_name = "youtube-playlist.jpg"
+    create_config_dir()
+
+    static_cover_name = "https://i.postimg.cc/VvZTvvMV/single-cover.jpg"
+    static_playlist_cover_name = "https://i.postimg.cc/m2XzZsnq/youtube-playlist.jpg"
     flask_port = 5000
     main_provider: Literal["deezer", "spotify"] = "deezer"
     spotify_features_available = "False"
-    youtube_account_features_available = "False"
+    youtube_account_access = "False"
+    avatar_icon = "https://i.postimg.cc/HnpL9ZrZ/avatar.jpg"
 
     variables_map = {
         "flask_port": flask_port,
         "static_cover_name": static_cover_name,
         "static_playlist_cover_name": static_playlist_cover_name,
         "spotify_features_available": spotify_features_available,
-        "youtube_account_features_available": youtube_account_features_available,
+        "youtube_account_access": youtube_account_access,
         "main_provider": main_provider,
+        "avatar_icon": avatar_icon,
     }
 
     print("---- Spotify Configuration ----")
@@ -95,17 +101,8 @@ def main():
     ).strip().lower()
 
     if use_youtube_features == "y":
-        cookies_path = required_input(
-            "Enter path to YouTube cookies file (e.g. ./Music/cookies.txt)"
-        )
-
-        variables_map["YOUTUBE_COOKIES_PATH"] = cookies_path
-        variables_map["youtube_account_features_available"] = "True"
+        variables_map["youtube_account_access"] = "True"
 
     save_env(variables_map)
 
     print("\n✅ Environment variables have been successfully configured.\n")
-
-
-if __name__ == "__main__":
-    main()

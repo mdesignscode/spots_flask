@@ -1,18 +1,17 @@
-from __future__ import annotations
-
 import os
 import pickle
+from importlib.resources import files
+from os.path import exists
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from spots.clients import SecretsManager
+from spots.utils import get_config_path
+
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
-PICKLE_TOKEN = "./Music/token.pickle"
-
+config_dir = get_config_path()
+PICKLE_TOKEN = f"{config_dir}/token.pickle"
 
 class YouTubeApiClient:
     """
@@ -28,14 +27,17 @@ class YouTubeApiClient:
     - Adding a video to YouTube likes library
     """
 
-    def __init__(self, *, secrets: SecretsManager):
+    def __init__(self):
         """
         Initialize the YouTubeApiClient.
 
         Sets up the api client.
         """
+        self.secrets_file = str(files("spots.config").joinpath("client_secrets.json"))
+        if not exists(self.secrets_file):
+            raise RuntimeError("Provide path to cookies for YouTube account access.")
+
         self.service = self._build_service()
-        self.secrets_path = secrets.read(key="YOUTUBE_COOKIES_PATH", alt="./Music/cookies.txt")
 
     def _build_service(self):
         """
@@ -54,7 +56,7 @@ class YouTubeApiClient:
                 creds.refresh(Request())
             else:
                 flow = InstalledAppFlow.from_client_secrets_file(
-                    "./Music/client_secrets.json", SCOPES
+                    self.secrets_file, SCOPES
                 )
                 creds = flow.run_local_server(port=0)
 

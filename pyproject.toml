@@ -1,6 +1,38 @@
 [project]
 name = "spots"
 version = "0.1.0"
+authors = [
+  { name="Marlon Baatjes", email="marlonbaatjes62@mail.com" }
+]
+description = "Spots is a modular music coordination library that unifies multiple providers (e.g. Deezer, Spotify, YouTube) into a single, consistent interface."
+readme = "README.md"
+requires-python = ">=3.0"
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3.14"
+]
+license = "GPL-3.0-or-later"
+dependencies = [
+  "beautifulsoup4",
+  "python-dotenv",
+  "google-api-python-client",
+  "google-auth-oauthlib",
+  "lyricsgenius",
+  "moviepy",
+  "mutagen",
+  "requests",
+  "spotipy",
+  "tenacity",
+  "yt-dlp",
+  "typer"
+]
+
+[project.urls]
+Homepage = "https://github.com/mdesignscode/spots_flask"
+Issues = "https://github.com/mdesignscode/spots_flask"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -8,3 +40,8 @@ where = ["src"]
 [tool.mypy]
 explicit_package_bases = true
 
+[project.scripts]
+spots = "spots.cli:main"
+
+[tool.setuptools.package-data]
+spots = ["config/client_secrets.json"]

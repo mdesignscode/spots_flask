@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from hashlib import md5
-from os.path import join
+from os.path import join, exists
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from spots.models import TitleExistsError, Metadata, YTVideoInfo
@@ -45,10 +46,13 @@ class Downloader:
         if self.core.history.read(filename):
             raise TitleExistsError(filename)
 
+        download_folder = f"{Path.home()}/Downloads"
+        download_folder = download_folder if exists(download_folder) else Path.home()
+
         download_path = join(
-            "./Music", directory_path, f"{filename}.{video_info.audio_ext}"
+            download_folder, directory_path, f"{filename}.{video_info.audio_ext}"
         )
-        converted_path = join("./Music", directory_path, f"{filename}.mp3")
+        converted_path = join(download_folder, directory_path, f"{filename}.mp3")
 
         # set template for download titles
         self.clients.ytdlp.options = {"outtmpl": download_path}

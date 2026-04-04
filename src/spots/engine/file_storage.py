@@ -8,10 +8,8 @@ from tempfile import NamedTemporaryFile
 from typing import Any, Literal, Optional, TypedDict, Sequence, overload
 
 from spots.models import SongNotFound, Metadata, Sentinel, YTVideoInfo
+from spots.utils import get_config_path
 
-# -----------------------------
-# logging setup
-# -----------------------------
 
 logger = getLogger(__name__)
 
@@ -46,7 +44,7 @@ class FileStorage:
     """A class for caching search results in a JSON file."""
 
     def __init__(self) -> None:
-        self.__file_path = "./Music/.metadata.json"
+        self.__file_path = f"{get_config_path()}/.metadata.json"
         self.__objects: CacheOptions = {
             "artist": {},
             "metadata": {},

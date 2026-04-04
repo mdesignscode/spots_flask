@@ -66,7 +66,7 @@ class DeezerMetadataService(MetadataProvider):
                 if error_msg == "no data":
                     raise SongNotFound(f"Id {track_id}")
                 else:
-                    raise Exception(f"Unknown error occured: {error_msg}")
+                    raise Exception(f"Unknown error occurred: {error_msg}")
 
             track_res = cast(FetchResponseSuccess, track_res)
             track = cast(dict[str, Any], track_res.data)

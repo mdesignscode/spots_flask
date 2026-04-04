@@ -2,7 +2,10 @@ from os import getenv, environ
 from typing import Literal, overload
 from dotenv import load_dotenv
 
-load_dotenv()
+from spots.utils import get_config_path
+
+
+load_dotenv(dotenv_path=f"{get_config_path()}/.env")
 
 class SecretsManager():
     @overload

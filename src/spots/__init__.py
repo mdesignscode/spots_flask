@@ -1,6 +1,7 @@
 from logging import getLogger
+
 from .bootstrap.container import Container
-from .models import MediaResourceSingle, SongNotFound, TitleExistsError
+from .models import MediaResourceSingle, SongNotFound, TitleExistsError, InvalidSearchFormat
 
 
 logger = getLogger(__name__)
@@ -46,7 +47,9 @@ class Spots:
             except SongNotFound:
                 logger.info("Query not found by provider, falling back to YouTube video details.")
                 provider_result = None
-
+            except InvalidSearchFormat as e:
+                logger.error(e)
+                return
 
             search_result = self.container.domain.youtube_search.video_search(query=query, is_general_search=True)
 
@@ -68,7 +71,10 @@ class Spots:
 
     def transfer_spotify_likes(self):
         """Transfers all spotify likes to YouTube library"""
-        self.container.app.youtube_user_playlist.transfer_spotify_likes_to_yt()
+        try:
+            self.container.app.youtube_user_playlist.transfer_spotify_likes_to_yt()
+        except SongNotFound:
+            logger.info("No liked songs found.")
 
 
 __all__ = ["Spots"]

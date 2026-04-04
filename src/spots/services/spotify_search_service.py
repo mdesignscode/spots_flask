@@ -13,6 +13,7 @@ from spots.models import (
     Sentinel,
     ArtistInfo,
     SpotifyUnavailableError,
+    InvalidSearchFormat,
 )
 from spots.utils import search_fallbacks
 
@@ -155,7 +156,7 @@ class SpotifySearchService(SearchProvider):
 
         Raises:
             SongNotFound: the `query` is not found on spotify.
-            TypeError: if query format not: `Artist - Title`
+            InvalidSearchFormat: if query format not: `Artist - Title`
 
         Returns:
             Metadata: The metadata of the title.
@@ -165,7 +166,7 @@ class SpotifySearchService(SearchProvider):
         if "-" not in query:
             error_txt = "Search format: `Artist` - `Title`"
             logger.error(error_txt)
-            raise TypeError(error_txt)
+            raise InvalidSearchFormat()
 
         cache = self.core.storage.get(query=query, query_type="metadata")
         if isinstance(cache, Sentinel):

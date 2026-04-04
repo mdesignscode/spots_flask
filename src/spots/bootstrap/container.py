@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from logging import basicConfig, INFO, getLogger
 from os.path import exists
-from os import makedirs
 
 from spots.app import (
     Downloader,
@@ -36,6 +35,7 @@ from spots.services import (
     SpotifyMetadataService,
 )
 from spots.integrations import SpotifyUserPlaylistModify
+from spots.utils import get_config_path
 
 logger = getLogger(__name__)
 
@@ -79,7 +79,7 @@ class App:
 
 class Container:
     def __init__(self):
-        self.__path = "./.bootstrapped"
+        self.__path = get_config_path() / ".bootstrapped"
 
         basicConfig(level=INFO)
 
@@ -107,9 +107,6 @@ class Container:
             logger.info("Running initial setup...")
             logger.info("Creating internal files used for tracking downloads...")
 
-            # Music folder
-            makedirs("./Music", exist_ok=True)
-
             # downloads history
             logger.info("Creating downloads history file...")
             history = HistoryManager()
@@ -125,8 +122,8 @@ class Container:
         secrets = SecretsManager()
 
         youtube = None
-        if secrets.read(key="youtube_account_features_available", alt="false").lower() == "true":
-            youtube = YouTubeApiClient(secrets=secrets)
+        if secrets.read(key="youtube_account_access", alt="false").lower() == "true":
+            youtube = YouTubeApiClient()
 
         spotify = None
         if secrets.read(key="spotify_features_available", alt="false").lower() == "true":
@@ -135,7 +132,7 @@ class Container:
         return Clients(
             spotify=spotify,
             youtube=youtube,
-            ytdlp=YtDlpClient(),
+            ytdlp=YtDlpClient(secrets=secrets),
             secrets=secrets,
             deezer=DeezerClient(),
         )

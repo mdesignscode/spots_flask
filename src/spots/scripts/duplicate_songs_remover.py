@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 """Removes all duplicate mp3 files"""
 
 from os import listdir, path, getcwd, remove
@@ -45,17 +44,9 @@ def process_directory(directory: str):
             process_song(item_path)
 
 
-if __name__ == "__main__":
-    if len(argv) < 2:
-        print("Usage: python duplicate_songs_remover.py folder_path")
-        exit(1)
-
-    folder = argv[1]
-
+def main(folder: str):
     if path.exists(folder):
         print("Searching for duplicate songs...")
-        spots_path = getcwd()
-        history_file = f"{spots_path}/Music/.spots_download_history.txt"
 
         process_directory(folder)
 
