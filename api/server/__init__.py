@@ -3,9 +3,9 @@ from flask_cors import CORS
 from logging import getLogger
 from typing import Dict, Literal, TypedDict, cast
 
-from spots.bootstrap import Container
-from spots.clients import SecretsManager
-from spots.models import (
+from spots_cli.bootstrap import Container
+from spots_cli.clients import SecretsManager
+from spots_cli.models import (
     SongNotFound,
     YouTubeQuotaExceeded,
     MediaResourceSingle,
@@ -16,7 +16,6 @@ from spots.models import (
     MediaResourcePlaylist,
 )
 from server.download_music import blueprint
-
 
 app = Flask(__name__, static_url_path="/static")
 app.register_blueprint(blueprint)
@@ -64,7 +63,14 @@ class SingleResponse(TypedDict):
 @app.route("/get-user")
 def get_user():
     if not bootstrapper.clients.spotify:
-        return jsonify({"error": "Spotify features unavailable. Sign in to use Spotify features."}), 401
+        return (
+            jsonify(
+                {
+                    "error": "Spotify features unavailable. Sign in to use Spotify features."
+                }
+            ),
+            401,
+        )
     username = bootstrapper.clients.spotify.get_user()
 
     return jsonify({"username": username})
@@ -186,7 +192,9 @@ def query(action: str):
                 "action": action,
             }
 
-            bootstrapper.core.storage.new(query=youtube_title, result=best_match, query_type="youtube")
+            bootstrapper.core.storage.new(
+                query=youtube_title, result=best_match, query_type="youtube"
+            )
             bootstrapper.core.storage.save()
 
             return jsonify(search_response)
@@ -314,4 +322,3 @@ def get_playlist_info(playlist: PlaylistInfo) -> PlaylistResponseInfo:
         "artist": "",
     }
     return playlist_info
-

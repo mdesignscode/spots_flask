@@ -1,17 +1,17 @@
 from logging import getLogger
-from spots.bootstrap import Container
+from spots_cli.bootstrap import Container
 from flask import Blueprint, request, jsonify
 from typing import Any, cast
 
-from spots.clients import SecretsManager
-from spots.models import Metadata, SongNotFound, TitleExistsError, YTVideoInfo
-
+from spots_cli.clients import SecretsManager
+from spots_cli.models import Metadata, SongNotFound, TitleExistsError, YTVideoInfo
 
 blueprint = Blueprint("download", __name__, url_prefix="/download")
 
 bootstrapper = Container()
 
 logger = getLogger(__name__)
+
 
 @blueprint.route("/saved", methods=["POST"])
 def download_saved_tracks():
@@ -29,7 +29,9 @@ def download_saved_tracks():
     for index, track in enumerate(
         zip(saved_tracks.provider_metadata, saved_tracks.youtube_metadata)
     ):
-        logger.info(f"Downloading track {index + 1}/{len(saved_tracks.provider_metadata)}")
+        logger.info(
+            f"Downloading track {index + 1}/{len(saved_tracks.provider_metadata)}"
+        )
 
         video_info = track[1]
         metadata = track[0]
@@ -115,6 +117,7 @@ def download_song():
     except Exception as e:
         raise e
 
+
 # NOTE: in progress
 @blueprint.route("/artist", methods=["POST"])
 @blueprint.route("/playlist", methods=["POST"])
@@ -127,17 +130,20 @@ def download_playlist():
     json_data = cast(list[dict[str, Any]], json_dict["selected_songs"])
     playlist_name = json_dict["playlist_name"]
 
-    selected_songs = [Metadata(
-        title=song["title"],
-        artist=song["artist"],
-        link=song["link"],
-        cover=song.get("cover"),
-        tracknumber=song.get("tracknumber"),
-        album=song.get("album"),
-        lyrics=song.get("lyrics"),
-        release_date=song.get("release_date"),
-        artist_id=song["artist_id"],
-    ) for song in json_data]
+    selected_songs = [
+        Metadata(
+            title=song["title"],
+            artist=song["artist"],
+            link=song["link"],
+            cover=song.get("cover"),
+            tracknumber=song.get("tracknumber"),
+            album=song.get("album"),
+            lyrics=song.get("lyrics"),
+            release_date=song.get("release_date"),
+            artist_id=song["artist_id"],
+        )
+        for song in json_data
+    ]
 
     for song in selected_songs:
         bootstrapper.app.downloader.download()
@@ -153,4 +159,3 @@ def download_playlist():
             )
         }
     )
-

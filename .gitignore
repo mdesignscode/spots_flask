@@ -8,6 +8,7 @@ yt_cache
 .cache*
 cookies.txt
 .env
+client_secrets.json
 
 # setup files
 .bootstrapped

@@ -1,0 +1,132 @@
+from __future__ import annotations
+
+from logging import getLogger
+from typing import Any, TypedDict, cast, TYPE_CHECKING
+
+from spots_cli.models import (
+    Metadata,
+    SearchProvider,
+    PlaylistInfo,
+    ArtistInfo,
+    MetadataProvider,
+    SongNotFound,
+    Sentinel,
+    InvalidSearchFormat,
+)
+from spots_cli.utils import search_fallbacks
+
+if TYPE_CHECKING:
+    from spots_cli.bootstrap.container import Clients, Core
+    from spots_cli.models import SearchProvider
+
+
+logger = getLogger(__name__)
+
+
+class DeezerResponseBase(TypedDict):
+    total: int
+    data: list[dict[str, Any]]
+
+
+class DeezerSearchService(SearchProvider):
+    def __init__(
+        self,
+        *,
+        metadata: MetadataProvider,
+        clients: Clients,
+        core: Core,
+        fallback_providers: list[SearchProvider] = [],
+    ):
+        self.fallback_providers = fallback_providers
+        self.clients = clients
+        self.core = core
+        self.metadata = metadata
+
+    def search_album(self, album_url: str) -> PlaylistInfo:
+        album_data = self.clients.deezer._get_resource_by_url(album_url)
+
+        album_metadata = [
+            self.metadata.get(search_result=result) for result in album_data["tracks"]
+        ]
+        artist_name = album_data["artist"]["name"]
+        return PlaylistInfo(
+            name=album_data["title"],
+            cover=album_data["cover"],
+            provider_metadata=album_metadata,
+            youtube_metadata=[],
+            artist=artist_name,
+        )
+
+    def search_playlist(self, playlist_url: str) -> PlaylistInfo:
+        playlist_data = self.clients.deezer._get_resource_by_url(playlist_url)
+
+        playlist_metadata = [
+            self.metadata.get(search_result=result)
+            for result in playlist_data["tracks"]
+        ]
+        return PlaylistInfo(
+            name=playlist_data["title"],
+            cover=playlist_data["picture"],
+            provider_metadata=playlist_metadata,
+            youtube_metadata=[],
+        )
+
+    def search_artist(self, artist_query: str) -> ArtistInfo:
+        # deezer provides a list of search results
+        # so we use the first result
+        metadata = self.search_track(artist_query)
+
+        cover = cast(str, metadata.artist_cover)
+        return ArtistInfo(name=metadata.artist, cover=cover, id=metadata.artist_id)
+
+    def search_artist_top_tracks(self, *, artist_id: str) -> PlaylistInfo:
+        try:
+            artist_id_int = int(artist_id)
+        except ValueError:
+            raise TypeError("Number ids required")
+
+        artist_info, top_tracks = self.clients.deezer.artist_top_tracks(artist_id_int)
+
+        # get metadata for each top track
+        top_tracks_playlist = [
+            self.metadata.get(track_id=top_track["id"]) for top_track in top_tracks
+        ]
+
+        return PlaylistInfo(
+            cover=artist_info.cover,
+            name="Top Tracks",
+            artist=artist_info.name,
+            provider_metadata=top_tracks_playlist,
+            youtube_metadata=[],
+        )
+
+    def search_track(self, query: str) -> Metadata:
+        query = query.replace("–", "-")  # `–` != `-`
+
+        if "-" not in query:
+            error_txt = "Search format: `Artist` - `Title`"
+            logger.error(error_txt)
+            raise InvalidSearchFormat()
+
+        cache = self.core.storage.get(query=query, query_type="metadata")
+
+        if isinstance(cache, Sentinel):
+            raise SongNotFound(query)
+        elif isinstance(cache, Metadata):
+            return cache
+        else:
+            try:
+                track_id = self.clients.deezer.search(query)
+                metadata = self.metadata.get(track_id=track_id)
+                self.core.storage.new(
+                    query=query, result=metadata, query_type="metadata"
+                )
+                return metadata
+            except SongNotFound:
+                metadata = search_fallbacks(
+                    query=query, providers=self.fallback_providers
+                )
+                self.core.storage.new(
+                    query=query, result=metadata, query_type="metadata"
+                )
+                return metadata

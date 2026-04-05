@@ -1,12 +1,16 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
 [project]
-name = "spots"
+name = "spots_cli"
 version = "0.1.0"
 authors = [
   { name="Marlon Baatjes", email="marlonbaatjes62@gmail.com" }
 ]
 description = "Spots is a modular music coordination library that unifies multiple providers (e.g. Deezer, Spotify, YouTube) into a single, consistent interface."
 readme = "README.md"
-requires-python = ">=3.0"
+requires-python = ">=3.9"
 classifiers = [
   "Development Status :: 5 - Production/Stable",
   "Environment :: Console",
@@ -41,7 +45,7 @@ where = ["src"]
 explicit_package_bases = true
 
 [project.scripts]
-spots = "spots.cli:main"
+spots_cli = "spots_cli.cli:main"
 
 [tool.setuptools.package-data]
-spots = ["config/client_secrets.json"]
+spots_cli = ["spot_cli.config/client_secrets.json"]

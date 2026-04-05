@@ -1,21 +1,18 @@
 #!/usr/bin/python3
 """Spots Web App"""
 
-from spots.engine import storage
+from spots_cli.engine import storage
 from logging import getLogger
 from os import getenv
 from requests import get
 from server import app
-from spots.clients import SpotifyClient
-
-
+from spots_cli.clients import SpotifyClient
 
 # -----------------------------
 # logging setup
 # -----------------------------
 
 logger = getLogger(__name__)
-
 
 
 if __name__ == "__main__":
@@ -39,4 +36,3 @@ if __name__ == "__main__":
     logger.debug(f"Serving Spots on port {port}")
 
     app.run(port=int(port), debug=False)
-
