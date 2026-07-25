@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from logging import getLogger
-from os.path import join
 from tenacity import stop_after_delay
 from typing import TYPE_CHECKING, Any, cast
 
@@ -13,6 +12,7 @@ from spots_cli.models import (
     MediaResourcePlaylist,
     PlaylistInfo,
     Sentinel,
+    UnavailableVideo,
     YTVideoInfo,
 )
 
@@ -52,7 +52,7 @@ class MediaResolver:
         if "spotify" in url:
             # single
             if "track" in url:
-                # retrieve Spotify data
+                # retrieve Provider data
                 logger.debug("Resource type: single")
 
                 track_id = url.split("/")[-1]
@@ -74,7 +74,8 @@ class MediaResolver:
             # playlist
             else:
                 logger.debug("Resource type: playlist")
-                playlist_info = self.domain.provider_search.search_playlist(url)
+                playlist_info = self.domain.provider_search.search_playlist(
+                    url)
 
                 return MediaResourcePlaylist(
                     resource_type="playlist", playlist_info=playlist_info
@@ -86,25 +87,66 @@ class MediaResolver:
             # playlist
             if "playlist" in url:
                 logger.debug("Resource type: playlist")
-                playlist_search = self.clients.ytdlp.client.extract_info(
-                    url, download=False
-                )
+
+                self.clients.ytdlp.options = {
+                    "ignoreerrors": True, "quiet": True}
+                try:
+                    playlist_search = self.clients.ytdlp.client.extract_info(
+                        url, download=False
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to extract playlist {url}: {e}")
+                    raise SongNotFound(url)
+                finally:
+                    self.clients.ytdlp.reset_options()
 
                 if not playlist_search:
                     raise SongNotFound(url)
 
                 playlist_search = cast(dict[str, Any], playlist_search)
 
-                videos_list = [
-                    YTVideoInfo(
-                        id=result["id"],
-                        filesize=self.domain.youtube_search.get_video_size(result),
-                        title=result["title"],
-                        uploader=result["uploader"],
-                        audio_ext=result["audio_ext"],
-                    )
-                    for result in playlist_search["entries"]
-                ]
+                videos_list: list[YTVideoInfo] = []
+                unavailable_videos: list[UnavailableVideo] = []
+                for position, result in enumerate(playlist_search["entries"]):
+                    # `ignoreerrors` leaves a `None` placeholder for videos
+                    # that failed to extract (private, deleted, region-locked)
+                    if result is None:
+                        logger.warning(
+                            f"Skipping unavailable playlist entry at position {
+                                position}"
+                        )
+                        unavailable_videos.append(
+                            UnavailableVideo(
+                                reason="unavailable (private, deleted, or region-locked)",
+                            )
+                        )
+                        continue
+
+                    try:
+                        videos_list.append(
+                            YTVideoInfo(
+                                id=result["id"],
+                                filesize=self.domain.youtube_search.get_video_size(
+                                    result
+                                ),
+                                title=result["title"],
+                                uploader=result["uploader"],
+                                audio_ext=result.get("audio_ext", "webm"),
+                            )
+                        )
+                    except KeyError as e:
+                        logger.warning(
+                            f"Skipping playlist entry missing field {
+                                e}: {result.get('id')}"
+                        )
+                        unavailable_videos.append(
+                            UnavailableVideo(
+                                id=result.get("id"),
+                                title=result.get("title"),
+                                reason=f"missing field: {e}",
+                            )
+                        )
+                        continue
 
                 domain_matches = self.domain_resolver.filter_matching_domain_results(
                     youtube_results=videos_list
@@ -120,6 +162,7 @@ class MediaResolver:
                     cover=cover,
                     provider_metadata=domain_matches.provider,
                     youtube_metadata=domain_matches.youtube,
+                    unavailable=unavailable_videos,
                 )
 
                 return MediaResourcePlaylist(
@@ -141,9 +184,12 @@ class MediaResolver:
                         video_info=video_info.result,
                     )
 
-                yt_title = video_info.result.full_title
+                yt_title = self.core.extractor.build_search_query(
+                    video_info.result.uploader, video_info.result.title
+                )
                 try:
-                    metadata = self.domain.provider_search.search_track(yt_title)
+                    metadata = self.domain.provider_search.search_track(
+                        yt_title)
                 except SongNotFound:
                     self.core.storage.new(
                         query=yt_title, result=Sentinel(), query_type="metadata"

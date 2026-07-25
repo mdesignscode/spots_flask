@@ -21,4 +21,6 @@ from spots_cli.models.metadata_provider import MetadataProvider
 from spots_cli.models.playlist_info import PlaylistInfo
 from spots_cli.models.search_provider import SearchProvider, ArtistInfo
 from spots_cli.models.sentinel import Sentinel
+from spots_cli.models.unavailable_video import UnavailableVideo
+from spots_cli.models.video_resolution import VideoResolution
 from spots_cli.models.yt_video_info import YTVideoInfo

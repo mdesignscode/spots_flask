@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spots — Signal Downloader</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+
+<body>
+  <div class="chassis">
+    <header class="nameplate">
+      <div class="nameplate__mark">
+        <span class="nameplate__led" aria-hidden="true"></span>
+        <h1 class="nameplate__title">SPOTS</h1>
+      </div>
+      <p class="nameplate__subtitle">SIGNAL DOWNLOADER — CH.1</p>
+    </header>
+
+    <main class="deck">
+      <section class="panel panel--hero" aria-labelledby="input-heading">
+        <h2 id="input-heading" class="panel__eyebrow">INPUT</h2>
+        <p class="panel__hint">
+          Paste a Spotify or YouTube link, or type a title to search.
+        </p>
+
+        <form class="jack-form" id="jack-form" autocomplete="off">
+          <div class="jack">
+            <svg class="jack__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v12m0 0-4-4m4 4 4-4M5 21h14" stroke="currentColor" stroke-width="1.6" fill="none"
+                stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <input id="jack-input" class="jack__input" type="text" name="query"
+              placeholder="https://open.spotify.com/track/… or “tinashe needs”" aria-label="Link or search" required />
+            <button class="jack__submit" type="submit" id="jack-submit">
+              <span>PULL</span>
+            </button>
+          </div>
+
+          <div class="meter" id="meter" data-state="idle" role="status" aria-live="polite">
+            <div class="meter__track" id="meter-track">
+              <span class="meter__segment"></span>
+              <span class="meter__segment"></span>
+              <span class="meter__segment"></span>
+              <span class="meter__segment"></span>
+              <span class="meter__segment"></span>
+              <span class="meter__segment"></span>
+              <span class="meter__segment"></span>
+              <span class="meter__segment"></span>
+            </div>
+            <span class="meter__label" id="meter-label">IDLE</span>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel panel--results" aria-labelledby="results-heading">
+        <h2 id="results-heading" class="panel__eyebrow">OUTPUT</h2>
+        <div id="results" class="results">
+          <div class="empty-state" id="empty-state">
+            <div class="empty-state__reel" aria-hidden="true"></div>
+            <p class="empty-state__text">NO SIGNAL — paste a link or search to begin</p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="rack-footer">
+      <span>SPOTS v0.1</span>
+      <span class="rack-footer__divider">·</span>
+      <span>MP3 / MP4</span>
+    </footer>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+
+</html>

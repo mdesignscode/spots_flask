@@ -121,5 +121,12 @@ class Spots:
         except SongNotFound:
             logger.info("No liked songs found.")
 
+    def download_spotify_likes(self):
+        """Downloads all Spotify likes"""
+        try:
+            self.container.app.youtube_user_playlist.transfer_spotify_likes_to_yt()
+        except SongNotFound:
+            logger.info("No liked songs found.")
+
 
 __all__ = ["Spots"]

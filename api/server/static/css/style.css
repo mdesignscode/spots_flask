@@ -1,0 +1,631 @@
+/* ============================================================
+   Spots — design tokens
+   ============================================================ */
+:root {
+  --bg: #14161a;
+  --surface: #1b1e23;
+  --surface-raised: #22262c;
+  --border: #33383f;
+  --border-soft: #292d33;
+
+  --text: #edede8;
+  --text-muted: #8b8f97;
+  --text-faint: #5c6067;
+
+  --amber: #e8a33d;
+  --amber-dim: #a97934;
+  --phosphor: #6fe7b0;
+  --peak-red: #e15252;
+
+  --font-display: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+
+  --radius-panel: 14px;
+  --radius-control: 10px;
+
+  --shadow-panel: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 20px 40px -24px rgba(0, 0, 0, 0.6);
+}
+
+/* ============================================================
+   Reset
+   ============================================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(ellipse 120% 80% at 50% -10%, #1c1f25 0%, var(--bg) 55%);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ============================================================
+   Chassis / layout
+   ============================================================ */
+.chassis {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 48px 24px 32px;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* ---- Nameplate ---- */
+.nameplate {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nameplate__mark {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nameplate__led {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--phosphor);
+  box-shadow: 0 0 8px 1px rgba(111, 231, 176, 0.7);
+  animation: pulse 2.4s ease-in-out infinite;
+  flex: none;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.nameplate__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: 0.06em;
+}
+
+.nameplate__subtitle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--text-faint);
+  padding-left: 18px;
+}
+
+/* ---- Deck (main content) ---- */
+.deck {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ---- Panel (shared chrome, rack-mount corner screws) ---- */
+.panel {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-panel);
+  padding: 26px 26px 24px;
+}
+
+.panel::before,
+.panel::after {
+  content: "";
+  position: absolute;
+  top: 12px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--border);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.3) inset;
+}
+
+.panel::before {
+  left: 12px;
+}
+
+.panel::after {
+  right: 12px;
+}
+
+.panel__eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--text-faint);
+  margin-bottom: 6px;
+}
+
+.panel__hint {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+/* ============================================================
+   Input jack + form
+   ============================================================ */
+.jack-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.jack {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: 6px 6px 6px 16px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.jack:focus-within {
+  border-color: var(--amber-dim);
+  box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.14);
+}
+
+.jack__icon {
+  width: 18px;
+  height: 18px;
+  color: var(--text-faint);
+  flex: none;
+}
+
+.jack__input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  padding: 12px 4px;
+}
+
+.jack__input::placeholder {
+  color: var(--text-faint);
+}
+
+.jack__input:focus {
+  outline: none;
+}
+
+.jack__submit {
+  flex: none;
+  background: var(--amber);
+  color: #1a1204;
+  border: none;
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: transform 0.08s ease, background 0.15s ease;
+}
+
+.jack__submit:hover {
+  background: #f0af52;
+}
+
+.jack__submit:active {
+  transform: translateY(1px);
+}
+
+.jack__submit:disabled {
+  background: var(--amber-dim);
+  cursor: progress;
+}
+
+/* ============================================================
+   Meter (signature status element)
+   ============================================================ */
+.meter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-left: 4px;
+}
+
+.meter__track {
+  display: flex;
+  gap: 3px;
+}
+
+.meter__segment {
+  width: 14px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--border-soft);
+  transition: background 0.12s ease;
+}
+
+.meter__label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+  min-width: 90px;
+}
+
+/* meter states, toggled via data-state on #meter-track's parent */
+.meter[data-state="loading"] .meter__segment {
+  background: var(--border-soft);
+  animation: meter-chase 1s ease-in-out infinite;
+}
+
+.meter[data-state="loading"] .meter__segment:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.meter[data-state="loading"] .meter__segment:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.meter[data-state="loading"] .meter__segment:nth-child(3) {
+  animation-delay: 120ms;
+}
+
+.meter[data-state="loading"] .meter__segment:nth-child(4) {
+  animation-delay: 180ms;
+}
+
+.meter[data-state="loading"] .meter__segment:nth-child(5) {
+  animation-delay: 240ms;
+}
+
+.meter[data-state="loading"] .meter__segment:nth-child(6) {
+  animation-delay: 300ms;
+}
+
+.meter[data-state="loading"] .meter__segment:nth-child(7) {
+  animation-delay: 360ms;
+}
+
+.meter[data-state="loading"] .meter__segment:nth-child(8) {
+  animation-delay: 420ms;
+}
+
+@keyframes meter-chase {
+
+  0%,
+  100% {
+    background: var(--border-soft);
+  }
+
+  50% {
+    background: var(--amber);
+  }
+}
+
+.meter[data-state="success"] .meter__segment {
+  background: var(--phosphor);
+}
+
+.meter[data-state="error"] .meter__segment:nth-child(-n + 2) {
+  background: var(--peak-red);
+}
+
+.meter[data-state="error"] .meter__segment:nth-child(n + 3) {
+  background: var(--border-soft);
+}
+
+/* ============================================================
+   Results / output panel
+   ============================================================ */
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 40px 20px;
+  color: var(--text-faint);
+}
+
+.empty-state__reel {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px dashed var(--border);
+  position: relative;
+}
+
+.empty-state__reel::after {
+  content: "";
+  position: absolute;
+  inset: 14px;
+  border-radius: 50%;
+  background: var(--border-soft);
+}
+
+.empty-state__text {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.status-message {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  padding: 14px 16px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+}
+
+.status-message--error {
+  border-color: rgba(225, 82, 82, 0.4);
+  color: #f2a3a3;
+}
+
+/* ---- Result cards ---- */
+.card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: 12px;
+}
+
+.card__cover {
+  width: 52px;
+  height: 52px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--border-soft);
+  flex: none;
+}
+
+.card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.card__title {
+  font-size: 14.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card__subtitle {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.card__badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  flex: none;
+}
+
+.card__badge--fallback {
+  color: #f2a3a3;
+  border-color: rgba(225, 82, 82, 0.4);
+}
+
+.card--fallback {
+  border-left: 2px solid rgba(225, 82, 82, 0.5);
+}
+
+.card--unavailable {
+  opacity: 0.55;
+  border-left: 2px solid var(--border);
+}
+
+.card--unavailable .card__title,
+.card--unavailable .card__subtitle {
+  color: var(--text-faint);
+}
+
+.card__badge--unavailable {
+  color: var(--text-faint);
+  border-color: var(--border);
+}
+
+.card__action {
+  flex: none;
+  background: transparent;
+  border: 1px solid var(--amber-dim);
+  color: var(--amber);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.card__action:hover {
+  background: var(--amber);
+  color: #1a1204;
+}
+
+.card__action:disabled {
+  opacity: 0.5;
+  cursor: default;
+  background: transparent;
+  color: var(--text-faint);
+}
+
+.playlist-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 2px 10px;
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 4px;
+}
+
+.playlist-header__cover {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: var(--border-soft);
+}
+
+.playlist-header__title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.playlist-header__count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.card__checkbox {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--amber);
+  cursor: pointer;
+}
+
+.playlist-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 2px 10px;
+}
+
+.playlist-actions__select-all {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.playlist-actions__select-all input {
+  accent-color: var(--amber);
+  cursor: pointer;
+}
+
+.playlist-actions__download-all {
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Footer
+   ============================================================ */
+.rack-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+}
+
+.rack-footer__divider {
+  opacity: 0.5;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (min-width: 720px) {
+  .chassis {
+    padding-top: 64px;
+  }
+
+  .jack-form {
+    gap: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .panel {
+    padding: 20px 18px 18px;
+  }
+
+  .jack__submit span {
+    letter-spacing: 0.04em;
+  }
+}

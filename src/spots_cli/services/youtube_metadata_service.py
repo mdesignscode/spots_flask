@@ -29,7 +29,8 @@ class YouTubeMetadataService:
         Returns:
             Metadata: the metadata of youtube song
         """
-        logger.debug(f"Retrieving metadata for YouTube video: {video_info.title}")
+        logger.debug(f"Retrieving metadata for YouTube video: {
+                     video_info.title}")
 
         # get cover from static folder
         cover = self.clients.secrets.read(
@@ -43,7 +44,8 @@ class YouTubeMetadataService:
             logger.info("Searching for metadata from Provider")
             search_result = self.search.search_track(search_title)
         except SongNotFound:
-            spotify_title = self.core.extractor.remove_odd_keywords(video_info.title)
+            spotify_title = self.core.extractor.remove_odd_keywords(
+                video_info.title)
             spotify_artist = self.core.extractor.remove_odd_keywords(
                 video_info.uploader
             )

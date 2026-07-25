@@ -55,7 +55,8 @@ class YouTubeExtractor:
             else defined_keywords
         )
 
-        pattern = compile("|".join(escape(k) for k in odd_keywords), flags=IGNORECASE)
+        pattern = compile("|".join(escape(k)
+                          for k in odd_keywords), flags=IGNORECASE)
         return pattern.sub("", title).strip()
 
     @staticmethod
@@ -87,11 +88,13 @@ class YouTubeExtractor:
             video_title = video_info.title
 
         # normalize tokens
-        normalized_yt_artist = self.normalize_special_chars(video_info.uploader)
+        normalized_yt_artist = self.normalize_special_chars(
+            video_info.uploader)
         normalized_yt_title = self.normalize_special_chars(video_title)
         normalized_sp_artist = self.normalize_special_chars(metadata.artist)
 
-        title_parts = split(r"\s*[-|:•]\s*|\s{2,}", normalized_yt_title, maxsplit=1)
+        title_parts = split(
+            r"\s*[-|:•]\s*|\s{2,}", normalized_yt_title, maxsplit=1)
 
         ARTIST_CANDIDATES = [normalized_yt_artist.strip()] + title_parts
 
@@ -112,7 +115,8 @@ class YouTubeExtractor:
 
                 # check for artist repeat in title
                 if normalized_yt_artist in normalized_yt_title:
-                    artist_pattern = compile(rf"{youtube_artist}\W?", flags=IGNORECASE)
+                    artist_pattern = compile(
+                        rf"{youtube_artist}\W?", flags=IGNORECASE)
                     youtube_title = sub(artist_pattern, "", video_title)
 
                     # strip title
@@ -131,13 +135,14 @@ class YouTubeExtractor:
                     youtube_artist = youtube_artist[::-1]
 
                     # strip title
-                    youtube_title = video_title[pattern_match.end() :]
+                    youtube_title = video_title[pattern_match.end():]
                     youtube_title = sub(r"\W", "", youtube_title, count=1)
                 else:
                     youtube_artist, youtube_title = video_info.uploader, video_title
             case _:
                 # different uploader, artist and title reversed
-                pattern = rf"\W{escape(self.normalize_special_chars(metadata.artist))}"
+                pattern = rf"\W{
+                    escape(self.normalize_special_chars(metadata.artist))}"
                 pattern_match = search(pattern, video_title, flags=IGNORECASE)
 
                 if pattern_match:
@@ -160,3 +165,31 @@ class YouTubeExtractor:
         return ArtistAndTitle(
             artist=youtube_artist.strip(), title=youtube_title.strip()
         )
+
+    def build_search_query(self, uploader: str, title: str) -> str:
+        """Cleans noisy YouTube uploader/title fields into a search-friendly
+        'Artist - Title' string for provider lookups (Deezer/Spotify).
+
+        Strips common suffixes like "(Official Video)" and de-duplicates the
+        uploader name when it's already repeated at the start of the title:
+
+            uploader="Tinashe", title="Tinashe - Needs (Official Video)"
+            -> "Tinashe - Needs"
+        """
+        uploader = self.remove_odd_keywords((uploader or "").strip())
+        uploader = sub(r"vevo$", "", uploader, flags=IGNORECASE).strip()
+        title = self.remove_odd_keywords((title or "").strip())
+
+        normalized_uploader = self.normalize_special_chars(uploader)
+        normalized_title = self.normalize_special_chars(title)
+
+        if normalized_uploader and normalized_title.startswith(normalized_uploader):
+            leading_uploader_pattern = compile(
+                rf"^\s*{escape(uploader)}\s*[-:|•]\s*", flags=IGNORECASE
+            )
+            deduped_title = leading_uploader_pattern.sub(
+                "", title, count=1).strip()
+            if deduped_title:
+                title = deduped_title
+
+        return f"{uploader} - {title}".strip(" -")

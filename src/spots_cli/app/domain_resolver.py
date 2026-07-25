@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from logging import getLogger
 from typing import TYPE_CHECKING, Sequence, overload
 
 from spots_cli.models import Metadata, SongNotFound, Sentinel, YTVideoInfo
@@ -9,6 +10,9 @@ if TYPE_CHECKING:
     from spots_cli.bootstrap.container import Core
     from spots_cli.models import SearchProvider
     from spots_cli.services import YoutubeSearchService
+
+
+logger = getLogger(__name__)
 
 
 @dataclass
@@ -21,6 +25,23 @@ class MatchingDomainResults:
 class ResolvedDomainResult:
     provider: Metadata
     youtube: YTVideoInfo
+
+
+def _fallback_metadata(video: YTVideoInfo) -> Metadata:
+    """Builds a bare-bones Metadata object straight from a YouTube result.
+
+    Used when no provider (Spotify/Deezer) has metadata for a track, or the
+    provider's result doesn't match. The provider is only used to prettify
+    the library (cover art, album, lyrics, etc) - the audio always comes
+    from YouTube, so a missing/mismatched provider entry should never cause
+    a track to be dropped as long as it exists on YouTube.
+    """
+    return Metadata(
+        title=video.title,
+        artist=video.uploader,
+        link=video.video_link,
+        artist_id="",
+    )
 
 
 class DomainResolver:
@@ -71,25 +92,40 @@ class DomainResolver:
                         video_title
                     )
                 except SongNotFound:
+                    logger.debug(
+                        f"No provider metadata for '{video_title}', "
+                        "falling back to YouTube-derived metadata"
+                    )
+                    fallback = _fallback_metadata(video)
                     self.core.storage.new(
-                        query=video_title, result=Sentinel(), query_type="metadata"
+                        query=video_title, result=fallback, query_type="metadata"
                     )
                     self.core.storage.new(
-                        query=video_title, result=Sentinel(), query_type="youtube"
+                        query=video_title, result=video, query_type="youtube"
                     )
+                    provider_playlist.append(fallback)
+                    youtube_videos.append(video)
+                    if (index % 10 == 0) or index == (len(youtube_results) - 1):
+                        self.core.storage.save()
                     continue
 
                 tracks_match = self.core.matcher.match_tracks(
                     video_info=video, metadata=spotify_search_result
                 )
                 if not tracks_match:
+                    logger.debug(
+                        f"Provider metadata for '{video_title}' didn't match, "
+                        "falling back to YouTube-derived metadata"
+                    )
+                    fallback = _fallback_metadata(video)
                     self.core.storage.new(
-                        query=video_title, result=Sentinel(), query_type="metadata"
+                        query=video_title, result=fallback, query_type="metadata"
                     )
                     self.core.storage.new(
-                        query=video_title, result=Sentinel(), query_type="youtube"
+                        query=video_title, result=video, query_type="youtube"
                     )
-                    continue
+                    provider_playlist.append(fallback)
+                    youtube_videos.append(video)
                 else:
                     self.core.storage.new(
                         query=video_title,

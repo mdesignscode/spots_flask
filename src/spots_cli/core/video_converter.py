@@ -1,9 +1,11 @@
 from logging import getLogger
 from moviepy.audio.io.AudioFileClip import AudioFileClip
+from moviepy.video.io.VideoFileClip import VideoFileClip
 from mutagen.id3 import ID3
 from mutagen.id3._frames import APIC, TIT2, TPE1, TRCK, TALB, USLT, TDRL
 from mutagen.mp3 import MP3
 from os import remove
+from os.path import abspath
 from requests import get
 
 from spots_cli.models.metadata import Metadata
@@ -13,7 +15,7 @@ logger = getLogger(__name__)
 
 class VideoConverter:
     """
-    Service responsible for converting audio files to MP3 format
+    Service responsible for converting audio/video files to MP3/MP4 format
     and updating their metadata.
 
     Attributes:
@@ -24,8 +26,11 @@ class VideoConverter:
 
         @convert_to_mp3
 
+        @convert_to_mp4
+
     This service handles:
     - Converting audio files to MP3
+    - Converting video files to MP4
     - Updating ID3 metadata (title, artist, album, cover art, lyrics, etc.)
     - Removing the original file after conversion
     - Adding successful downloads to the download history
@@ -138,6 +143,45 @@ class VideoConverter:
             # Clean up resources
             clip.close()
             remove(old_file)
+
+            return True
+
+        except FileNotFoundError:
+            logger.error(f"{old_file} not found...")
+            return False
+
+    def convert_to_mp4(
+        self,
+        *,
+        old_file: str,
+        new_file: str,
+    ) -> bool:
+        """
+        Convert a video file to MP4 format.
+
+        This method:
+        - Converts the input video file to MP4 (H.264 video / AAC audio)
+        - Deletes the original file once conversion succeeds, unless the
+          source and destination paths are the same
+
+        Args:
+            old_file (str): Path to the source video file.
+            new_file (str): Path where the converted MP4 file will be saved.
+
+        Returns:
+            bool: True indicates a successful conversion.
+        """
+        try:
+            # Load the video clip
+            clip = VideoFileClip(old_file)
+
+            # Convert and save as MP4
+            clip.write_videofile(new_file, codec="libx264", audio_codec="aac")
+
+            # Clean up resources
+            clip.close()
+            if abspath(old_file) != abspath(new_file):
+                remove(old_file)
 
             return True
 
