@@ -77,6 +77,10 @@ Spots will:
   ```bash
   spots download "Kelsey Lynn - Modern Day Marilyn Monroe"
   ```
+* download-video - downloads a YouTube video (a url, or search terms) as mp4. Picks the highest resolution unless you pass `--resolution`
+  ```bash
+  spots download-video "https://www.youtube.com/watch?v=UmZPa5Qudtw" --resolution 720p
+  ```
 * migrate-likes - transfers likes from Spotify to YouTube (more providers coming soon...)
   ```bash
   spots migrate-likes

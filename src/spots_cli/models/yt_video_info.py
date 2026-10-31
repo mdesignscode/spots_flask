@@ -17,7 +17,7 @@ class YTVideoInfo:
 
     @property
     def video_link(self):
-        return f"https://youtube.com.watch?v={self.id}"
+        return f"https://youtube.com/watch?v={self.id}"
 
     @property
     def full_title(self):

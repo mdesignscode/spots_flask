@@ -5,7 +5,13 @@ from os.path import join, exists
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from spots_cli.models import TitleExistsError, Metadata, VideoResolution, YTVideoInfo
+from spots_cli.models import (
+    ResolutionUnavailable,
+    TitleExistsError,
+    Metadata,
+    VideoResolution,
+    YTVideoInfo,
+)
 
 if TYPE_CHECKING:
     from spots_cli.bootstrap.container import Core, Clients
@@ -17,6 +23,25 @@ class Downloader:
     def __init__(self, *, core: Core, clients: Clients):
         self.core = core
         self.clients = clients
+
+    @staticmethod
+    def _filename(video_info: YTVideoInfo) -> str:
+        """A file-system safe name for a video: "Uploader - Title"."""
+        # '/' will read file name as folder in *nix systems
+        filename = video_info.full_title.replace("/", "|")
+        # Check if the file name length is too long, truncate if necessary
+        max_filename_length = 255  # Maximum allowed file name length on most systems
+        if len(filename) > max_filename_length:
+            filename = md5(filename.encode()).hexdigest()[:25]
+        return filename
+
+    @staticmethod
+    def _download_folder(directory_path: str) -> str:
+        """The folder downloads are saved to: ~/Downloads (or ~), plus directory_path."""
+        download_folder = Path.home() / "Downloads"
+        if not exists(download_folder):
+            download_folder = Path.home()
+        return join(download_folder, directory_path)
 
     def download(
         self, *, video_info: YTVideoInfo, metadata: Metadata, directory_path: str = ""
@@ -30,32 +55,16 @@ class Downloader:
         Returns:
             bool: True if downloaded successfully.
         """
-        url = "https://youtube.com/watch?v=" + video_info.id
-        title = f"{video_info.uploader} - {video_info.title}"
-
-        # normalize title
-        # '/' will read file name as folder in *nix systems
-        filename = title.replace("/", "|")
-        # Check if the file name length is too long, truncate if necessary
-        max_filename_length = 255  # Maximum allowed file name length on most systems
-        if len(filename) > max_filename_length:
-            file_hash = md5(filename.encode()).hexdigest()
-            filename = file_hash[:25]
+        url = video_info.video_link
+        filename = self._filename(video_info)
 
         # check if downloaded already
         if self.core.history.read(filename):
             raise TitleExistsError(filename)
 
-        download_folder = Path.home() / "Downloads"
-        download_folder = download_folder if exists(
-            download_folder) else Path.home()
-
-        download_path = join(
-            download_folder, directory_path, f"{
-                filename}.{video_info.audio_ext}"
-        )
-        converted_path = join(
-            download_folder, directory_path, f"{filename}.mp3")
+        folder = self._download_folder(directory_path)
+        download_path = join(folder, f"{filename}.{video_info.audio_ext}")
+        converted_path = join(folder, f"{filename}.mp3")
 
         # set template for download titles
         self.clients.ytdlp.options = {"outtmpl": download_path}
@@ -98,7 +107,7 @@ class Downloader:
                 download_video automatically merges in the best available audio
                 track for those.
         """
-        url = f"https://youtube.com/watch?v={video_info.id}"
+        url = video_info.video_link
 
         self.clients.ytdlp.options = {"quiet": True, "noplaylist": True}
         try:
@@ -163,42 +172,75 @@ class Downloader:
 
         return resolutions
 
+    @staticmethod
+    def pick_resolution(
+        resolutions: dict[str, VideoResolution], label: str | None = None
+    ) -> VideoResolution:
+        """
+        Chooses one resolution from get_available_resolutions().
+
+        Args:
+            resolutions: the available resolutions, keyed by label.
+            label (str, Optional): e.g. "720p" (a bare "720" is accepted too).
+                Defaults to the highest resolution available.
+
+        Raises:
+            ResolutionUnavailable: no resolutions, or `label` is not among them.
+        """
+        by_height = sorted(resolutions.values(), key=lambda r: r.height)
+        available = [r.label for r in by_height]
+
+        if label is None:
+            if not by_height:
+                raise ResolutionUnavailable("best", available)
+            return by_height[-1]
+
+        wanted = label.strip().lower()
+        if not wanted.endswith("p"):
+            wanted += "p"
+        if wanted not in resolutions:
+            raise ResolutionUnavailable(wanted, available)
+        return resolutions[wanted]
+
     def download_video(
         self,
         *,
         video_info: YTVideoInfo,
-        resolution: VideoResolution,
+        resolution: VideoResolution | str | None = None,
         directory_path: str = "",
-    ) -> bool:
+    ) -> str:
         """
-        Downloads a specific resolution of a YouTube video.
+        Downloads a YouTube video as mp4 at a chosen resolution.
 
         Args:
             video_info (YTVideoInfo): the extracted info.
-            resolution (VideoResolution): one of the *values* returned by
-                get_available_resolutions(), e.g. resolutions["1080p"].
+            resolution (VideoResolution | str, Optional): one of the values
+                returned by get_available_resolutions(), a label such as
+                "1080p", or None for the highest resolution available.
             directory_path (str, Optional): the folder to be downloaded to.
+
+        Returns:
+            str: the path of the downloaded file.
+
+        Raises:
+            ResolutionUnavailable: the requested label is not offered.
         """
-        format_id = resolution.format_id
-        if not format_id:
-            raise ValueError(
-                "resolution must be a VideoResolution returned from "
-                "get_available_resolutions() (missing 'format_id')"
+        if not isinstance(resolution, VideoResolution):
+            resolution = self.pick_resolution(
+                self.get_available_resolutions(video_info=video_info), resolution
             )
 
-        url = f"https://youtube.com/watch?v={video_info.id}"
-        title = f"{video_info.uploader} - {video_info.title}"
-        filename = title.replace("/", "|")
-
-        download_folder = Path.home() / "Downloads"
-        download_folder = download_folder if exists(
-            download_folder) else Path.home()
-        download_path = join(download_folder, directory_path, f"{
-                             filename}.%(ext)s")
+        url = video_info.video_link
+        download_path = join(
+            self._download_folder(directory_path),
+            f"{self._filename(video_info)}.%(ext)s",
+        )
 
         # video-only formats (common at higher resolutions) need audio merged in
         format_selector = (
-            f"{format_id}+bestaudio/best" if resolution.is_video_only else format_id
+            f"{resolution.format_id}+bestaudio/best"
+            if resolution.is_video_only
+            else resolution.format_id
         )
 
         self.clients.ytdlp.options = {
@@ -211,8 +253,8 @@ class Downloader:
         }
 
         try:
-            self.clients.ytdlp.client.download([url])
+            info = self.clients.ytdlp.client.extract_info(url, download=True)
         finally:
             self.clients.ytdlp.reset_options()
 
-        return True
+        return info["requested_downloads"][-1]["filepath"]

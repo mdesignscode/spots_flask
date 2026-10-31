@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from logging import getLogger
 from os.path import exists
 
@@ -8,6 +10,7 @@ from .models import (
     TitleExistsError,
     InvalidSearchFormat,
     InvalidURL,
+    ResolutionUnavailable,
 )
 
 logger = getLogger(__name__)
@@ -113,6 +116,41 @@ class Spots:
                 query=query, result=best_match, query_type="youtube"
             )
             self.container.core.storage.save()
+
+    def download_video(
+        self, query: str, resolution: str | None = None, directory_path: str = ""
+    ) -> str | None:
+        """Downloads a YouTube video as mp4
+
+        Args:
+            query (str): A YouTube video url, or search terms (the top result is used).
+            resolution (str, Optional): e.g. "720p". Defaults to the highest available.
+            directory_path (str, Optional): sub-folder of the downloads folder.
+
+        Returns:
+            str | None: the downloaded file's path, or None if nothing was downloaded.
+        """
+        is_url = query.startswith(("http://", "https://"))
+
+        try:
+            logger.info(f"Searching for {query}...")
+            search = self.container.domain.youtube_search.video_search(
+                query=query, is_general_search=not is_url
+            )
+            video = search.result if is_url else search.result[0]
+
+            logger.info(f"Downloading {video.full_title}...")
+            path = self.downloader.download_video(
+                video_info=video, resolution=resolution, directory_path=directory_path
+            )
+        except (SongNotFound, ResolutionUnavailable) as e:
+            logger.error(e)
+            return None
+        finally:
+            self.container.core.storage.save()
+
+        logger.info(f"Saved to {path}")
+        return path
 
     def transfer_spotify_likes(self):
         """Transfers all spotify likes to YouTube library"""

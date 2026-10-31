@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "spots_cli"
-version = "0.1.0"
+version = "0.2.0"
 authors = [
   { name="Marlon Baatjes", email="marlonbaatjes62@gmail.com" }
 ]
@@ -30,9 +30,12 @@ dependencies = [
   "requests",
   "spotipy",
   "tenacity",
-  "yt-dlp",
+  "yt-dlp[default]>=2026.10.26",
   "typer"
 ]
+
+[dependency-groups]
+test = ["pytest"]
 
 [project.urls]
 Homepage = "https://github.com/mdesignscode/spots_flask"
@@ -40,6 +43,13 @@ Issues = "https://github.com/mdesignscode/spots_flask"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.hatch.build.targets.sdist]
+# only the package, its tests and docs; not the API, deploy files or local scratch files
+include = ["src", "tests", "README.md", "LICENSE", "pyproject.toml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.mypy]
 explicit_package_bases = true

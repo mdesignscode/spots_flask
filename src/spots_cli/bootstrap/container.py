@@ -35,7 +35,7 @@ from spots_cli.services import (
     SpotifyMetadataService,
 )
 from spots_cli.integrations import SpotifyUserPlaylistModify
-from spots_cli.utils import get_config_path
+from spots_cli.utils import create_config_dir, get_config_path
 
 logger = getLogger(__name__)
 
@@ -109,6 +109,8 @@ class Container:
     def initial_setup(self) -> None:
         if not exists(self.__path):
             logger.debug("Running initial setup...")
+            # a server (e.g. the API) builds the container without running `spots setup`
+            create_config_dir()
             logger.debug("Creating internal files used for tracking downloads...")
 
             # downloads history

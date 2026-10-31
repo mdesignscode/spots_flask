@@ -1,10 +1,18 @@
+from __future__ import annotations
+
 from logging import getLogger
+from pathlib import Path
 from typing import Any, cast
 
 from flask import Blueprint, request, jsonify
 
 from spots_cli.bootstrap import Container
-from spots_cli.models import VideoResolution, YTVideoInfo
+from spots_cli.models import (
+    ResolutionUnavailable,
+    SongNotFound,
+    VideoResolution,
+    YTVideoInfo,
+)
 
 blueprint = Blueprint("download_video", __name__, url_prefix="/download/video")
 
@@ -111,39 +119,75 @@ def get_resolutions():
     )
 
 
+def _find_video(query: str) -> YTVideoInfo:
+    """The video a url points to, or the top YouTube result for search terms.
+
+    Raises:
+        SongNotFound: nothing matched.
+    """
+    is_url = query.startswith(("http://", "https://"))
+    search = bootstrapper.domain.youtube_search.video_search(
+        query=query, is_general_search=not is_url
+    )
+    return search.result if is_url else search.result[0]
+
+
 @blueprint.route("", methods=["POST"])
 def download_video():
-    """Downloads a specific resolution of a YouTube video.
+    """Downloads a YouTube video as mp4.
 
-    Expects a YTVideoInfo-shaped payload plus a "resolution" object (one of
-    the values returned by /resolutions) and an optional "directory_path".
+    The video is either a YTVideoInfo-shaped payload (id, title, uploader,
+    audio_ext, filesize) or a "query": a YouTube url or search terms, whose
+    top result is used.
+
+    "resolution" is optional: one of the objects returned by /resolutions, a
+    label such as "720p", or omitted for the highest available. An optional
+    "directory_path" picks a sub-folder of the downloads folder.
+
+    Responds with the downloaded file's path.
     """
     json_data = _get_json_payload(request)
 
-    try:
-        video_info = _build_video_info(json_data)
-    except (ValueError, TypeError, KeyError) as e:
-        return jsonify({"message": str(e)}), 400
+    query = json_data.get("query")
+    if query is not None and not (isinstance(query, str) and query.strip()):
+        return jsonify({"message": "'query' must be a non-empty string"}), 400
 
     resolution_data = json_data.get("resolution")
-    if not isinstance(resolution_data, dict):
-        return jsonify({"message": "Missing 'resolution' object"}), 400
-
-    try:
-        resolution = _build_resolution(resolution_data)
-    except (ValueError, TypeError, KeyError) as e:
-        return jsonify({"message": str(e)}), 400
+    resolution: VideoResolution | str | None
+    if isinstance(resolution_data, dict):
+        try:
+            resolution = _build_resolution(resolution_data)
+        except (ValueError, TypeError, KeyError) as e:
+            return jsonify({"message": str(e)}), 400
+    elif resolution_data is None or isinstance(resolution_data, str):
+        resolution = resolution_data
+    else:
+        return jsonify({"message": "'resolution' must be an object or a label like '720p'"}), 400
 
     directory_path = json_data.get("directory_path", "")
+    if not isinstance(directory_path, str) or Path(directory_path).is_absolute() or ".." in Path(directory_path).parts:
+        return jsonify({"message": "'directory_path' must be a relative sub-folder"}), 400
 
     try:
-        bootstrapper.app.downloader.download_video(
+        video_info = _find_video(query.strip()) if query else _build_video_info(json_data)
+    except SongNotFound as e:
+        return jsonify({"message": str(e)}), 404
+    except (ValueError, TypeError, KeyError) as e:
+        return jsonify({"message": str(e)}), 400
+    except Exception as e:
+        logger.error(f"Video search failed for '{query}': {e}")
+        return jsonify({"message": "Search failed"}), 502
+
+    try:
+        path = bootstrapper.app.downloader.download_video(
             video_info=video_info,
             resolution=resolution,
             directory_path=directory_path,
         )
+    except ResolutionUnavailable as e:
+        return jsonify({"message": str(e), "available": e.available}), 400
     except Exception as e:
         logger.error(f"Video download failed for {video_info.id}: {e}")
         return jsonify({"message": f"Download failed: {str(e)}"}), 500
 
-    return jsonify({"message": "Successfully downloaded"}), 200
+    return jsonify({"message": "Successfully downloaded", "file": path}), 200

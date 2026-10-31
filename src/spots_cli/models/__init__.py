@@ -9,6 +9,7 @@ from spots_cli.models.errors import (
     SpotifyUnavailableError,
     YouTubeUnavailableError,
     InvalidSearchFormat,
+    ResolutionUnavailable,
 )
 from spots_cli.models.helper_models import (
     ArtistAndTitle,

@@ -57,6 +57,16 @@ class InvalidSearchFormat(Exception):
         super().__init__(self.message)
 
 
+class ResolutionUnavailable(Exception):
+    """The requested video resolution is not offered for a video"""
+
+    def __init__(self, label: str, available: list[str]):
+        self.label = label
+        self.available = available
+        self.message = f"{label} is not available. Choose from: {', '.join(available)}"
+        super().__init__(self.message)
+
+
 class YouTubeUnavailableError(RuntimeError):
     """YouTube account features unavailable"""
 

@@ -1,6 +1,6 @@
 from os.path import exists
 from logging import getLogger
-from typing import Callable
+from typing import Optional
 import typer
 
 from spots_cli import setup_env, Spots
@@ -20,6 +20,20 @@ def setup():
 def download(query: str):
     app = Spots()
     app.download(query)
+
+
+@app.command()
+def download_video(
+    query: str,
+    resolution: Optional[str] = typer.Option(
+        None, "--resolution", "-r", help='e.g. "720p". Defaults to the highest available.'
+    ),
+):
+    """Download a YouTube video (url or search terms) as mp4."""
+    path = Spots().download_video(query, resolution=resolution)
+    if not path:
+        raise typer.Exit(code=1)
+    typer.echo(path)
 
 
 @app.command()
