@@ -50,6 +50,16 @@ spots_cli setup
 * follow the prompts to generate the config folder
 
 
+### YouTube account features (optional)
+
+Migrating likes uses your own Google credentials. In Google Cloud Console, enable the YouTube Data API v3, create an OAuth client ID of type *Desktop app*, and save its JSON as `client_secrets.json` in the Spots config folder:
+
+* Linux: `~/.config/spots_cli/`
+* macOS: `~/Library/Application Support/spots_cli/`
+* Windows: `%APPDATA%\spots_cli\`
+
+Then answer "y" to the YouTube question in `spots_cli setup`. You'll sign in to YouTube in your browser the first time.
+
 ---
 
 ## 🚀 Usage

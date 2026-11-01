@@ -3,8 +3,13 @@ from unittest.mock import Mock, mock_open, patch
 
 import pytest
 
-from spots_cli.clients import youtube
-from spots_cli.clients.youtube import PICKLE_TOKEN, SCOPES, YouTubeApiClient
+from spots_cli.clients.youtube import (
+    CLIENT_SECRETS,
+    PICKLE_TOKEN,
+    SCOPES,
+    YouTubeApiClient,
+    find_client_secrets,
+)
 
 MODULE = "spots_cli.clients.youtube"
 
@@ -24,10 +29,33 @@ def test_constants():
     assert PICKLE_TOKEN.endswith("spots_cli/token.pickle")
 
 
-def test_init_without_client_secrets_fails():
+def test_client_secrets_live_in_config_folder():
+    assert str(CLIENT_SECRETS).endswith("spots_cli/client_secrets.json")
+    assert str(CLIENT_SECRETS).startswith(PICKLE_TOKEN.rsplit("/", 1)[0])
+
+
+def test_config_folder_secrets_win_over_legacy():
+    with patch(f"{MODULE}.exists", return_value=True):
+        assert find_client_secrets() == str(CLIENT_SECRETS)
+
+
+def test_falls_back_to_secrets_inside_package():
+    with patch(f"{MODULE}.exists", side_effect=lambda p: p != str(CLIENT_SECRETS)):
+        found = find_client_secrets()
+    assert found != str(CLIENT_SECRETS)
+    assert found.endswith("spots_cli/config/client_secrets.json")
+
+
+def test_no_secrets_anywhere():
     with patch(f"{MODULE}.exists", return_value=False):
-        with pytest.raises(RuntimeError):
+        assert find_client_secrets() is None
+
+
+def test_init_without_client_secrets_says_where_to_put_them():
+    with patch(f"{MODULE}.exists", return_value=False):
+        with pytest.raises(RuntimeError, match="client_secrets.json is missing") as err:
             YouTubeApiClient()
+    assert str(CLIENT_SECRETS) in str(err.value)
 
 
 def test_init_builds_service():
@@ -39,7 +67,7 @@ def test_init_builds_service():
 
     build.assert_called_once()
     assert client.service == "svc"
-    assert client.secrets_file.endswith("client_secrets.json")
+    assert client.secrets_file == str(CLIENT_SECRETS)
 
 
 def test_valid_saved_token_is_reused():

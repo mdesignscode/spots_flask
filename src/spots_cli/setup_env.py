@@ -113,6 +113,17 @@ def main():
     if use_youtube_features == "y":
         variables_map["youtube_account_access"] = "True"
 
+        from spots_cli.clients.youtube import CLIENT_SECRETS, find_client_secrets
+
+        if not find_client_secrets():
+            print(
+                "\nYouTube features need your own Google OAuth client:\n"
+                "  1. In Google Cloud Console, enable the YouTube Data API v3\n"
+                "  2. Create an OAuth client ID of type 'Desktop app' and download its JSON\n"
+                f"  3. Save it as {CLIENT_SECRETS}\n"
+                "You'll be asked to sign in to YouTube the first time a YouTube feature runs."
+            )
+
     save_env(variables_map)
 
     print("\n✅ Environment variables have been successfully configured.\n")
