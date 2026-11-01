@@ -34,7 +34,7 @@ It resolves tracks across platforms, matches metadata intelligently, and enables
 ## 📦 Installation
 
 ```bash
-pip install spots
+pip install spots-cli
 ```
 
 ---
@@ -44,7 +44,7 @@ pip install spots
 ### Run the setup script:
 
 ```bash
-spots setup
+spots_cli setup
 ```
 
 * follow the prompts to generate the config folder
@@ -56,10 +56,10 @@ spots setup
 ```bash
 # search a title
 # required search format: `Artist - Title`
-spots download "Kelsey Lynn - Modern Day Marilyn Monroe"
+spots_cli download "Kelsey Lynn - Modern Day Marilyn Monroe"
 
 # download a direct url
-spots download "https://www.youtube.com/watch?v=UmZPa5Qudtw"
+spots_cli download "https://www.youtube.com/watch?v=UmZPa5Qudtw"
 ```
 
 Spots will:
@@ -75,23 +75,23 @@ Spots will:
 
 * download - downloads a direct url or a search query
   ```bash
-  spots download "Kelsey Lynn - Modern Day Marilyn Monroe"
+  spots_cli download "Kelsey Lynn - Modern Day Marilyn Monroe"
   ```
 * download-video - downloads a YouTube video (a url, or search terms) as mp4. Picks the highest resolution unless you pass `--resolution`
   ```bash
-  spots download-video "https://www.youtube.com/watch?v=UmZPa5Qudtw" --resolution 720p
+  spots_cli download-video "https://www.youtube.com/watch?v=UmZPa5Qudtw" --resolution 720p
   ```
 * migrate-likes - transfers likes from Spotify to YouTube (more providers coming soon...)
   ```bash
-  spots migrate-likes
+  spots_cli migrate-likes
   ```
 * add-to-history - adds a user's downloaded songs to the Spots history. Avoids duplicate downloads.
   ```bash
-  spots add-to-history path-to-music
+  spots_cli add-to-history path-to-music
   ```
 * remove-duplicates - removes duplicate songs in a given folder.
   ```bash
-  spots remove-duplicates path-to-music
+  spots_cli remove-duplicates path-to-music
   ```
 
 ---
