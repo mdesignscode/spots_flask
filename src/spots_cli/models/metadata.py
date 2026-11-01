@@ -17,6 +17,7 @@ class Metadata:
         preview_url (str | None, optional): A link to a 30 second preview (MP3 format) of the track. Defaults to None.
         artist_cover (str | None, optional): The artist's cover image. Defauls to None.
         artist_id (str): The artist's id.
+        is_fallback (bool): True when no provider had this song, so the tags come from the YouTube title. Defaults to False.
     """
 
     title: str
@@ -30,6 +31,7 @@ class Metadata:
     release_date: str | None = None
     preview_url: str | None = None
     artist_cover: str | None = None
+    is_fallback: bool = False
 
     @property
     def full_title(self):

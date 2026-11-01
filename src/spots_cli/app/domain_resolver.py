@@ -27,7 +27,7 @@ class ResolvedDomainResult:
     youtube: YTVideoInfo
 
 
-def _fallback_metadata(video: YTVideoInfo) -> Metadata:
+def fallback_metadata(video: YTVideoInfo) -> Metadata:
     """Builds a bare-bones Metadata object straight from a YouTube result.
 
     Used when no provider (Spotify/Deezer) has metadata for a track, or the
@@ -41,6 +41,7 @@ def _fallback_metadata(video: YTVideoInfo) -> Metadata:
         artist=video.uploader,
         link=video.video_link,
         artist_id="",
+        is_fallback=True,
     )
 
 
@@ -96,7 +97,7 @@ class DomainResolver:
                         f"No provider metadata for '{video_title}', "
                         "falling back to YouTube-derived metadata"
                     )
-                    fallback = _fallback_metadata(video)
+                    fallback = fallback_metadata(video)
                     self.core.storage.new(
                         query=video_title, result=fallback, query_type="metadata"
                     )
@@ -117,7 +118,7 @@ class DomainResolver:
                         f"Provider metadata for '{video_title}' didn't match, "
                         "falling back to YouTube-derived metadata"
                     )
-                    fallback = _fallback_metadata(video)
+                    fallback = fallback_metadata(video)
                     self.core.storage.new(
                         query=video_title, result=fallback, query_type="metadata"
                     )

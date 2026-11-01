@@ -1,18 +1,31 @@
 from tenacity import retry as _retry
 from tenacity import retry_if_exception
 
-from spots_cli.models import SongNotFound
+from spots_cli.models import (
+    InvalidURL,
+    SongNotFound,
+    SpotifyUnavailableError,
+    YouTubeUnavailableError,
+)
+
+# not transient: retrying can't change the answer
+PERMANENT_ERRORS = (
+    InvalidURL,
+    SongNotFound,
+    SpotifyUnavailableError,
+    YouTubeUnavailableError,
+)
 
 
 def is_retryable_exception(exc: BaseException) -> bool:
     # Only retry transient failures
-    return not isinstance(exc, SongNotFound)
+    return not isinstance(exc, PERMANENT_ERRORS)
 
 
 def retry(*args, **kwargs):
     """
     Project-wide retry decorator.
-    - Never retries SongNotFound
+    - Never retries PERMANENT_ERRORS
     - Always re-raises the final exception
     """
 

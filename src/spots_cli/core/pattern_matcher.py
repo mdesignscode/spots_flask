@@ -141,8 +141,13 @@ class PatternMatcher:
         self.extractor = extractor
 
     def match_tracks(self, *, video_info: YTVideoInfo, metadata: Metadata) -> bool:
-        yt_artist = video_info.uploader or ""
-        yt_title = video_info.title or ""
+        # compare the song, not the raw upload: "Tyla - Water (Official
+        # Music Video)" by Tyla is the song "Water" by "Tyla"
+        cleaned = self.extractor.extract_artist_and_title(
+            video_info=video_info, metadata=metadata
+        )
+        yt_artist = cleaned.artist or video_info.uploader or ""
+        yt_title = cleaned.title or video_info.title or ""
 
         sp_artist = metadata.artist or ""
         sp_title = metadata.title or ""
@@ -164,7 +169,7 @@ class PatternMatcher:
         title_score = token_similarity(yt_title_tokens, sp_title_tokens)
         artist_score = token_similarity(yt_artist_tokens, sp_artist_tokens)
 
-        penalty = uploader_penalty(yt_artist)
+        penalty = uploader_penalty(video_info.uploader or "")
 
         final_score = 0.6 * title_score + 0.3 * artist_score - penalty
 

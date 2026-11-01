@@ -4,10 +4,12 @@ from logging import getLogger
 from tenacity import stop_after_delay
 from typing import TYPE_CHECKING, Any, cast
 
+from spots_cli.app.domain_resolver import fallback_metadata
 from spots_cli.engine import retry
 from spots_cli.models import (
     InvalidURL,
     SongNotFound,
+    SpotifyUnavailableError,
     MediaResourceSingle,
     MediaResourcePlaylist,
     PlaylistInfo,
@@ -50,6 +52,13 @@ class MediaResolver:
         """
         # process spotify link
         if "spotify" in url:
+            # a Spotify id means nothing to the other providers
+            if not self.clients.spotify:
+                raise SpotifyUnavailableError(
+                    "Spotify links need Spotify turned on. Run `spots_cli setup` "
+                    "and enable Spotify, or paste the YouTube link instead."
+                )
+
             # single
             if "track" in url:
                 # retrieve Provider data
@@ -187,40 +196,33 @@ class MediaResolver:
                 yt_title = self.core.extractor.build_search_query(
                     video_info.result.uploader, video_info.result.title
                 )
+                # the user picked this video, so it is downloaded either way;
+                # the provider only adds tags (cover, album, lyrics)
                 try:
                     metadata = self.domain.provider_search.search_track(
                         yt_title)
                 except SongNotFound:
-                    self.core.storage.new(
-                        query=yt_title, result=Sentinel(), query_type="metadata"
-                    )
-                    self.core.storage.new(
-                        query=yt_title, result=Sentinel(), query_type="youtube"
-                    )
-                    raise
+                    metadata = None
 
-                tracks_match = self.core.matcher.match_tracks(
+                if metadata is None or not self.core.matcher.match_tracks(
                     metadata=metadata, video_info=video_info.result
+                ):
+                    logger.debug(
+                        f"No matching provider metadata for '{yt_title}', "
+                        "falling back to YouTube-derived metadata"
+                    )
+                    metadata = fallback_metadata(video_info.result)
+
+                self.core.storage.new(
+                    query=yt_title, result=metadata, query_type="metadata"
                 )
-                if not tracks_match:
-                    self.core.storage.new(
-                        query=yt_title, result=Sentinel(), query_type="metadata"
-                    )
-                    self.core.storage.new(
-                        query=yt_title, result=Sentinel(), query_type="youtube"
-                    )
-                    raise SongNotFound(yt_title)
-                else:
-                    self.core.storage.new(
-                        query=yt_title, result=metadata, query_type="metadata"
-                    )
-                    self.core.storage.new(
-                        query=yt_title, result=video_info.result, query_type="youtube"
-                    )
-                    return MediaResourceSingle(
-                        resource_type="single",
-                        metadata=metadata,
-                        video_info=video_info.result,
-                    )
+                self.core.storage.new(
+                    query=yt_title, result=video_info.result, query_type="youtube"
+                )
+                return MediaResourceSingle(
+                    resource_type="single",
+                    metadata=metadata,
+                    video_info=video_info.result,
+                )
         else:
             raise InvalidURL(url)
