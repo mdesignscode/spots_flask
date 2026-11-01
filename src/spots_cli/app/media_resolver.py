@@ -211,7 +211,9 @@ class MediaResolver:
                         f"No matching provider metadata for '{yt_title}', "
                         "falling back to YouTube-derived metadata"
                     )
-                    metadata = fallback_metadata(video_info.result)
+                    metadata = fallback_metadata(
+                        video_info.result, self.core.extractor
+                    )
 
                 self.core.storage.new(
                     query=yt_title, result=metadata, query_type="metadata"

@@ -8,6 +8,7 @@ from spots_cli.models import Metadata, SongNotFound, Sentinel, YTVideoInfo
 
 if TYPE_CHECKING:
     from spots_cli.bootstrap.container import Core
+    from spots_cli.core import YouTubeExtractor
     from spots_cli.models import SearchProvider
     from spots_cli.services import YoutubeSearchService
 
@@ -27,8 +28,9 @@ class ResolvedDomainResult:
     youtube: YTVideoInfo
 
 
-def fallback_metadata(video: YTVideoInfo) -> Metadata:
-    """Builds a bare-bones Metadata object straight from a YouTube result.
+def fallback_metadata(video: YTVideoInfo, extractor: YouTubeExtractor) -> Metadata:
+    """Builds a bare-bones Metadata object straight from a YouTube result,
+    with the artist and title cleaned of video noise like "(Official Video)".
 
     Used when no provider (Spotify/Deezer) has metadata for a track, or the
     provider's result doesn't match. The provider is only used to prettify
@@ -36,9 +38,10 @@ def fallback_metadata(video: YTVideoInfo) -> Metadata:
     from YouTube, so a missing/mismatched provider entry should never cause
     a track to be dropped as long as it exists on YouTube.
     """
+    cleaned = extractor.clean_artist_and_title(video.uploader, video.title)
     return Metadata(
-        title=video.title,
-        artist=video.uploader,
+        title=cleaned.title or video.title,
+        artist=cleaned.artist or video.uploader,
         link=video.video_link,
         artist_id="",
         is_fallback=True,
@@ -97,7 +100,7 @@ class DomainResolver:
                         f"No provider metadata for '{video_title}', "
                         "falling back to YouTube-derived metadata"
                     )
-                    fallback = fallback_metadata(video)
+                    fallback = fallback_metadata(video, self.core.extractor)
                     self.core.storage.new(
                         query=video_title, result=fallback, query_type="metadata"
                     )
@@ -118,7 +121,7 @@ class DomainResolver:
                         f"Provider metadata for '{video_title}' didn't match, "
                         "falling back to YouTube-derived metadata"
                     )
-                    fallback = fallback_metadata(video)
+                    fallback = fallback_metadata(video, self.core.extractor)
                     self.core.storage.new(
                         query=video_title, result=fallback, query_type="metadata"
                     )

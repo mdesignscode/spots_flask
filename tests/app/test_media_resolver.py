@@ -78,3 +78,18 @@ def test_spotify_link_needs_spotify_turned_on(upload):
 
     # not retried, and the Spotify id never reaches another provider
     resolver.domain.provider_metadata.get.assert_not_called()
+
+
+def test_fallback_tags_drop_the_repeated_artist_and_video_tags():
+    upload = YTVideoInfo(
+        id="kSBQZH3dkZ8",
+        title="Tyla - THAT GIRL (Biuro Version) (Official Video)",
+        uploader="TylaVEVO",
+        audio_ext="webm",
+        filesize=4,
+    )
+    resolver = build_resolver(upload, provider_error=SongNotFound("Tyla - THAT GIRL"))
+
+    metadata = resolver.resolve(url=LINK).metadata
+
+    assert (metadata.artist, metadata.title) == ("Tyla", "THAT GIRL (Biuro Version)")

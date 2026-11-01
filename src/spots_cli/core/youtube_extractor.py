@@ -166,15 +166,15 @@ class YouTubeExtractor:
             artist=youtube_artist.strip(), title=youtube_title.strip()
         )
 
-    def build_search_query(self, uploader: str, title: str) -> str:
-        """Cleans noisy YouTube uploader/title fields into a search-friendly
-        'Artist - Title' string for provider lookups (Deezer/Spotify).
+    def clean_artist_and_title(self, uploader: str, title: str) -> ArtistAndTitle:
+        """Cleans noisy YouTube uploader/title fields into an artist and a title.
 
-        Strips common suffixes like "(Official Video)" and de-duplicates the
-        uploader name when it's already repeated at the start of the title:
+        Strips common suffixes like "(Official Video)" and a trailing "VEVO",
+        and de-duplicates the uploader name when it's already repeated at the
+        start of the title:
 
             uploader="Tinashe", title="Tinashe - Needs (Official Video)"
-            -> "Tinashe - Needs"
+            -> artist="Tinashe", title="Needs"
         """
         uploader = self.remove_odd_keywords((uploader or "").strip())
         uploader = sub(r"vevo$", "", uploader, flags=IGNORECASE).strip()
@@ -192,4 +192,9 @@ class YouTubeExtractor:
             if deduped_title:
                 title = deduped_title
 
-        return f"{uploader} - {title}".strip(" -")
+        return ArtistAndTitle(artist=uploader, title=title)
+
+    def build_search_query(self, uploader: str, title: str) -> str:
+        """The cleaned 'Artist - Title' string for provider lookups (Deezer/Spotify)."""
+        cleaned = self.clean_artist_and_title(uploader, title)
+        return f"{cleaned.artist} - {cleaned.title}".strip(" -")
